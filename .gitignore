@@ -1,0 +1,41 @@
+# === Generated / large datasets — regenerate via generate_sensor_dataset.py ===
+sensor_data.csv
+sensor_data.parquet
+sensor_data_gap_log.csv
+*.parquet
+sample_*.csv
+test_*.csv
+full_run*.log
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# === Virtual environments ===
+venv/
+.venv/
+env/
+ENV/
+
+# === Jupyter ===
+.ipynb_checkpoints/
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Editor/IDE ===
+.vscode/
+.idea/
+*.swp
+
+# === Logs / temp ===
+*.log
+*.tmp
