@@ -9,6 +9,7 @@ from api.state import AppState
 from api.stream_engine import StreamEngine
 from api.routes_stations import router as stations_router
 from api.routes_benchmark import router as benchmark_router
+from api.routes_stream import router as stream_router
 
 status_router = APIRouter()
 
@@ -50,6 +51,7 @@ def create_app(dataset_path: str = "../sensor_data.csv",
     app.include_router(stations_router)
     app.include_router(benchmark_router)
     app.include_router(status_router)
+    app.include_router(stream_router)
     return app
 
 
