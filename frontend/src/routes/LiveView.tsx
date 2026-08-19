@@ -3,6 +3,7 @@ import { getSeverity } from "../lib/severity";
 import LiveBadge from "../components/LiveBadge";
 import StatTile from "../components/StatTile";
 import SeverityTag from "../components/SeverityTag";
+import StationCard from "../components/StationCard";
 
 export default function LiveView() {
   const { stations, events, status } = useLiveStream();
@@ -25,6 +26,11 @@ export default function LiveView() {
             <span className="text-text-secondary">{e.timestamp}</span>
             <SeverityTag severity={getSeverity(e)} />
           </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        {Object.entries(stations).map(([sid, latest]) => (
+          <StationCard key={sid} stationId={sid} latest={latest} />
         ))}
       </div>
     </div>
