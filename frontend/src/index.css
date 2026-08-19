@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { @apply dark; }
+body { @apply bg-canvas text-text-primary font-sans; }
+
+/*
+ * shadcn/ui component tokens (Card/Popover/Badge/Table etc. read these via
+ * CSS variables). SentinelAQ is a single dark-theme ops tool with no
+ * light-mode toggle, so only the `.dark` block is meaningful — it's mapped
+ * 1:1 to design.md's tokens rather than shadcn's generic defaults. The
+ * `:root` block is kept only as an inert fallback.
+ */
+@layer base {
+  :root {
+    --background: #111217;
+    --foreground: rgb(204, 204, 220);
+    --card: #181b1f;
+    --card-foreground: rgb(204, 204, 220);
+    --popover: #181b1f;
+    --popover-foreground: rgb(204, 204, 220);
+    --primary: #3d71d9;
+    --primary-foreground: #ffffff;
+    --secondary: #22252b;
+    --secondary-foreground: rgb(204, 204, 220);
+    --muted: #181b1f;
+    --muted-foreground: rgba(204, 204, 220, 0.65);
+    --accent: #22252b;
+    --accent-foreground: rgb(204, 204, 220);
+    --destructive: #d10e5c;
+    --destructive-foreground: #ffffff;
+    --border: rgba(204, 204, 220, 0.2);
+    --input: rgba(204, 204, 220, 0.2);
+    --ring: rgba(204, 204, 220, 0.3);
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: #111217;
+    --foreground: rgb(204, 204, 220);
+    --card: #22252b;
+    --card-foreground: rgb(204, 204, 220);
+    --popover: #22252b;
+    --popover-foreground: rgb(204, 204, 220);
+    --primary: #3d71d9;
+    --primary-foreground: #ffffff;
+    --secondary: #22252b;
+    --secondary-foreground: rgb(204, 204, 220);
+    --muted: #181b1f;
+    --muted-foreground: rgba(204, 204, 220, 0.65);
+    --accent: #22252b;
+    --accent-foreground: rgb(204, 204, 220);
+    --destructive: #d10e5c;
+    --destructive-foreground: #ffffff;
+    --border: rgba(204, 204, 220, 0.2);
+    --input: rgba(204, 204, 220, 0.2);
+    --ring: rgba(204, 204, 220, 0.3);
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+}
