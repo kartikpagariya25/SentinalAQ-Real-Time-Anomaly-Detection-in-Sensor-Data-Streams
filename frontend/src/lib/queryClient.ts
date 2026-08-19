@@ -1,7 +1,14 @@
 import { QueryClient, useQuery } from "@tanstack/react-query";
-import type { StationMeta, BenchmarkResponse, DetectionEvent } from "../types";
+import type { StationMeta, BenchmarkResponse, DetectionEvent, StreamStatus } from "../types";
 
-export const queryClient = new QueryClient();
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -18,11 +25,11 @@ export function useStations() {
   });
 }
 
-export function useStationHistory(stationId: string) {
+export function useStationHistory(stationId: string, enabled: boolean = true) {
   return useQuery({
     queryKey: ["station-history", stationId],
     queryFn: () => fetchJson<DetectionEvent[]>(`/api/stations/${stationId}/history`),
-    enabled: !!stationId,
+    enabled: !!stationId && enabled,
   });
 }
 
@@ -30,5 +37,13 @@ export function useBenchmark() {
   return useQuery({
     queryKey: ["benchmark"],
     queryFn: () => fetchJson<BenchmarkResponse>("/api/benchmark"),
+  });
+}
+
+export function useStreamStatus() {
+  return useQuery({
+    queryKey: ["stream-status"],
+    queryFn: () => fetchJson<StreamStatus>("/api/stream/status"),
+    refetchInterval: 2000,
   });
 }

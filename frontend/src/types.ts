@@ -33,3 +33,10 @@ export interface BenchmarkResponse {
   winner: string;
   why: string;
 }
+
+export interface StreamStatus {
+  paused: boolean;
+  speed_multiplier: number;
+  rows_processed: number;
+  started_at: string;
+}

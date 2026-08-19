@@ -8,7 +8,7 @@ import type { DetectionEvent } from "../types";
 
 export default function StationCard({ stationId, latest }: { stationId: string; latest: DetectionEvent | null }) {
   const [expanded, setExpanded] = useState(false);
-  const { data: history } = useStationHistory(stationId);
+  const { data: history } = useStationHistory(stationId, expanded);
   const severity = getSeverity(latest);
   const sparkData = (history ?? []).filter((h) => h.readings).map((h) => ({ pm25: h.readings!.pm25 }));
 
