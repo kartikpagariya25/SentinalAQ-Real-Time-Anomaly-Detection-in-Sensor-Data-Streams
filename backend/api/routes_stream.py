@@ -7,13 +7,17 @@ router = APIRouter()
 async def stream_ws(websocket: WebSocket):
     await websocket.accept()
     state = websocket.app.state.sentinelaq
-    state.clients.add(websocket)
 
     snapshot = {
         "type": "snapshot",
         "stations": {sid: list(hist)[-1] if hist else None for sid, hist in state.history.items()},
     }
     await websocket.send_json(snapshot)
+    # Register only after the snapshot write fully completes, so StreamEngine.broadcast()
+    # (running in a separate asyncio task) can never interleave a detection write with the
+    # in-flight snapshot write on this socket. Any detection generated during the snapshot
+    # send is simply dropped for this client rather than delivered out of order.
+    state.clients.add(websocket)
 
     try:
         while True:
