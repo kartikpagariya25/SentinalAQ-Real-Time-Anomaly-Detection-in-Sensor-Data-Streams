@@ -61,7 +61,7 @@ Concise, operational, calm under alert — this is a monitoring tool, not market
 
 ## Core Components (SentinelAQ-specific)
 
-- **LiveBadge** — pulsing dot + "LIVE" text, `color.status.normal` dot while connected, `color.text.disabled` + "DISCONNECTED" label on stream loss. Must not rely on animation alone (respect `prefers-reduced-motion`).
+- **LiveBadge** — pulsing dot + "LIVE" text, `color.status.normal` dot while connected, `color.text.disabled` + "DISCONNECTED" label on stream loss. Must not rely on animation alone (respect `prefers-reduced-motion`). Note: `SeverityTag`'s "sole consumer of `color.status.*`" rule (below) governs *severity classification* specifically — it exists to prevent a real regional event ever being shown as a sensor fault. `LiveBadge` reusing `color.status.normal` for WebSocket connection health is a deliberate exception: connection health isn't a severity classification and carries none of that risk.
 - **SeverityTag** — pill (`radius.pill`), one of `normal / drift / fault / event`, background = status color at low opacity, text = status text color, always paired with a short label, never color-only.
 - **StatTile** — KPI card (latency p95, throughput, env-event FP rate): value in `font.size.h2`, label in `bodySmall`/`color.text.secondary`, trend arrow optional.
 - **StationCard** — station id, live reading, sparkline, current `SeverityTag`; expands to show which detector(s) fired and the spatial-correction verdict.
