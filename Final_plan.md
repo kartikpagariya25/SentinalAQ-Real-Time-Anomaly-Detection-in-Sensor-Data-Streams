@@ -433,39 +433,64 @@ air-quality sensor fault patterns worth calibrating the simulator against.
 
 ### Phase 2 — Algorithm Development & Benchmarking (Week 2-4) ← **current phase**
 - Implement the MVP build order from Section 4.5: statistical rules (A)
-  first, then PyOD Isolation Forest + LOF.
+  first, then PyOD Isolation Forest + LOF, then STL residual (B) as the
+  third distinct model family — satisfies the project's "benchmark ≥3
+  models, deploy the best" requirement.
 - Build the evaluation framework (Section 7) using the labels already in
   the dataset; run the benchmark suite; produce the comparison table.
-- Only add STL/Prophet/autoencoder methods if the benchmark shows a
-  concrete gap the first two buckets don't cover.
 - Deliverable: `models/` directory (`detectors.py`, `evaluate.py`,
-  `benchmark.py`) + a benchmark report.
+  `benchmark.py`, `spatial_correlation.py`) + a benchmark report.
 
-**Baseline results (100k-row stratified sample, 6 stations):**
+**Results (100k-row stratified sample, 6 stations; `raw` = base detector,
+`corrected` = composed with the spatial-correlation layer):**
 
 | Method | Precision | Recall | F1 | Env-event FP rate |
 |---|---|---|---|---|
 | missing (rule) | 1.00 | 1.00 | 1.00 | n/a |
-| Z-score outlier | 0.36 | 0.88 | 0.51 | 0.08 |
-| flatline (rolling std) | 0.71 | 0.57 | 0.64 | 0.23 |
-| CUSUM drift | 0.05 | 0.07 | 0.06 | 0.05 |
+| Z-score outlier | 0.34 | 0.86 | 0.49 | 0.07 |
+| flatline (rolling std) | 0.90 | 0.60 | 0.72 | 0.06 |
+| CUSUM drift | 0.05 | 0.09 | 0.07 | 0.06 |
 | duplicate (rule) | 0.50\* | 1.00 | 0.67 | n/a |
-| Isolation Forest (PyOD) | 0.36 | 0.40 | 0.38 | **0.88** |
-| LOF (PyOD) | 0.28 | 0.31 | 0.29 | **0.19** |
-| Gap detector | recall 1.00, mean delay ≈24 min (event-level, vs `_gap_log.csv`) | | | |
+| STL residual (raw) | 0.59 | 0.26 | 0.37 | 0.49 |
+| STL residual (corrected) | 0.61 | 0.25 | 0.35 | 0.43 |
+| Isolation Forest (raw) | 0.41 | 0.45 | 0.43 | **0.94** |
+| Isolation Forest (corrected) | 0.41 | 0.43 | 0.42 | **0.86** |
+| **LOF (raw)** | 0.23 | 0.25 | 0.24 | **0.07** |
+| **LOF (corrected)** | 0.23 | 0.25 | 0.24 | **0.06** |
+| Gap detector | recall 1.00, mean delay ≈28 min (event-level, vs `_gap_log.csv`) | | | |
 
 \* duplicate precision is capped at 0.5 by construction — a `(station_id,
 timestamp)` key match correctly flags both rows in the pair, but only the
 appended copy carries the `duplicate` ground-truth label.
 
+**Model selection for the live stream — LOF (+ spatial correction).**
+Among the three genuinely distinct model families benchmarked head-to-head
+(Isolation Forest, LOF, STL residual), Isolation Forest wins on raw F1
+(0.43) but its env-event false-positive rate (0.86-0.94) means it wrongly
+flags a real regional pollution event as a sensor fault the large majority
+of the time — Section 2 already names that the single most Respirer-
+specific failure mode in the whole project, so this disqualifies it
+regardless of F1. STL residual sits in between (F1 0.35-0.37, env-FP
+0.43-0.49) and still fails that bar. LOF is the only one of the three that
+clears it by a wide margin (env-FP 0.06-0.07) — the deliberate trade being
+made is accepting LOF's lower raw recall (it catches fewer true faults) in
+exchange for not crying "fault" on genuine air-quality events, which the
+plan treats as the costlier error. LOF is therefore the model wired into
+the Phase 3 streaming prototype, run alongside the cheap statistical rules
+(flatline, Z-score) which already score competitively on their own targets
+and stay in the ensemble as first-pass filters, not replaced by LOF.
+
 **What this run already validates (headline finding):** Isolation
-Forest's environmental-event false-positive rate (0.88) confirms the plan's
+Forest's environmental-event false-positive rate confirms the plan's
 Section 4.5E argument empirically — a single-sensor multivariate detector
 genuinely cannot tell a real regional pollution event from a fault; both
-look like a multivariate outlier from one station's point of view. LOF's
-much lower rate (0.19) is a useful secondary finding for method selection.
-This is the concrete evidence for the "cross-sensor correlation is the
-headline contribution" claim, not just an assertion.
+look like a multivariate outlier from one station's point of view. The
+spatial-correction layer helps every model somewhat but cannot rescue
+Isolation Forest's or STL's env-event failure rate on its own — it narrows
+the gap, it doesn't close it. This is the concrete evidence for the
+"cross-sensor correlation is the headline contribution" claim, not just
+an assertion, and for why LOF (not the highest-F1 model) is the correct
+choice for the live path.
 
 **What this run exposed as a real bug (not a benchmark artifact):**
 building this benchmark caught that `inject_flatline_faults` and
@@ -489,12 +514,38 @@ thresholding (Section 4.5B), which removes the diurnal component first
 and should perform meaningfully better - a concrete, evidence-backed
 next step for Phase 2 rather than a speculative one.
 
-### Phase 3 — Streaming Pipeline Build (Week 4-6)
-- Wrap the best-performing detectors in a **river**-based online scoring
-  loop that replays the dataset row-by-row to simulate live arrival.
-- Only escalate to MQTT + Bytewax/Kafka if the river prototype's
-  throughput genuinely can't keep up with a realistic message rate.
-- Feature store, alerting, dedup logic; Streamlit benchmarking UI.
+### Phase 3 — Streaming Pipeline Build (Week 4-6) ✅ **prototype done**
+- `streaming/live_stream.py`: **river**-based online scoring loop that
+  replays the dataset in true timestamp order (interleaved across
+  stations, not grouped) to simulate live arrival. Runs the ensemble
+  selected in Phase 2 — Z-score + flatline (cheap rules) + incremental
+  LOF (`river.anomaly.LocalOutlierFactor`, matching the batch-benchmark
+  winner) + the spatial-correlation correction layer — scoring each row
+  as it "arrives" and measuring real per-row latency.
+- **LOF reset every 300 points per station:** river's incremental LOF
+  keeps unbounded per-point history, so per-row cost grows over time
+  instead of staying ~constant — the first full run stalled past 5 min
+  CPU time on 20k rows for exactly this reason. Periodically discarding
+  and reinitializing the per-station LOF instance bounds memory and
+  keeps scoring cost flat, at the cost of briefly losing that station's
+  learned neighborhood every 300 rows — an acceptable trade for an MVP
+  prototype, revisit if a production build needs a smarter fixed-size
+  sliding window.
+- **Results (39,860-row multi-station run, true arrival order):**
+  precision 0.26, recall 0.60, F1 0.36, env-event FP rate 0.16;
+  latency p50 5.4ms / p95 11.5ms / p99 13.0ms — well inside the <5s p95
+  target (Section 1). Throughput 177.6 msgs/sec single-process/
+  single-thread on a laptop — nowhere near the 10k msg/sec production
+  target, but that target is explicitly for the scaled-up build (Section
+  1), not this MVP; the plan's own escalation rule ("only move to
+  MQTT/Bytewax/Kafka once river's throughput genuinely can't keep up")
+  hasn't been triggered yet at this data volume.
+- F1 here (0.36) beats LOF alone in the batch benchmark (0.24) because
+  the ensemble ORs three detectors together, trading some of the
+  env-event FP rate back up (0.16 vs LOF-alone's 0.06-0.07) for higher
+  recall — expected ensemble behavior, not a regression.
+- Feature store, alerting, dedup logic, Streamlit benchmarking UI: not
+  yet built — next steps within this phase.
 
 ### Phase 4 — Field Integration (Week 6-10)
 - Integrate with actual Respirer field network data feed.

@@ -132,10 +132,30 @@ def seasonal_factor(day_of_year: np.ndarray) -> np.ndarray:
 # ----------------------------------------------------------------------
 # Station generator
 # ----------------------------------------------------------------------
-def generate_stations(n_stations: int, rng: np.random.Generator) -> pd.DataFrame:
+def generate_stations(n_stations: int, rng: np.random.Generator,
+                       n_cities: int = None, city_radius_km: float = 18.0) -> pd.DataFrame:
+    """
+    Real deployments (Respirer's included) cluster devices within cities,
+    not uniformly across the whole country. Pick a handful of "city"
+    centers and scatter stations around each one, so "nearby stations" is
+    a real geographic concept a spatial-correlation feature can actually
+    use - a station's few nearest neighbors end up tens of km away, not
+    hundreds/thousands, matching how a real regional pollution event
+    (dust storm, stubble burning) would actually show up.
+    """
     station_ids = [f"RESP-{i:04d}" for i in range(1, n_stations + 1)]
-    lats = rng.uniform(*INDIA_LAT_RANGE, size=n_stations)
-    lons = rng.uniform(*INDIA_LON_RANGE, size=n_stations)
+
+    if n_cities is None:
+        n_cities = max(3, min(25, n_stations // 6))
+    city_lats = rng.uniform(*INDIA_LAT_RANGE, size=n_cities)
+    city_lons = rng.uniform(*INDIA_LON_RANGE, size=n_cities)
+
+    city_assignment = rng.integers(0, n_cities, size=n_stations)
+    deg_radius = city_radius_km / 111.0  # ~1 degree latitude =~ 111 km
+    lats = city_lats[city_assignment] + rng.uniform(-deg_radius, deg_radius, size=n_stations)
+    lons = city_lons[city_assignment] + rng.uniform(-deg_radius, deg_radius, size=n_stations)
+    lats = np.clip(lats, *INDIA_LAT_RANGE)
+    lons = np.clip(lons, *INDIA_LON_RANGE)
 
     # Per-station baseline multipliers -> some stations are naturally
     # "cleaner" (residential/park) vs "dirtier" (traffic/industrial)
@@ -597,37 +617,41 @@ def generate_dataset(n_records: int, n_stations: int, start_date: str,
     assert sum(DIST.values()) == n_records == len(df), \
         "Distribution counts must sum to n_records and match generated length"
 
-    # Environmental events are picked by station-geography + time window, not
-    # flat random sampling, so they're reserved first and excluded from the
-    # pool used for the other (flat-random) categories.
+    # Ordering matters here and is the fix for a real bug: run-based
+    # categories (environmental_event, flatline, drift, comm_gap) MUST be
+    # injected first, while every row is still "normal", because each of
+    # them selects a contiguous run by filtering to anomaly_type=="normal"
+    # and slicing a chronologically-sorted subset of that filtered result.
+    # If a flat point-category (outlier/missing) were assigned first, its
+    # scattered rows would silently vanish from later filters - meaning a
+    # flatline/drift/gap "run" could look contiguous in the filtered index
+    # while actually having a stray, already-labeled point-anomaly sitting
+    # unseen inside its real timestamp span. Doing point-categories LAST,
+    # sampled only from whatever is still genuinely "normal" at that point,
+    # makes that collision structurally impossible instead of just unlikely.
     env_idx = inject_environmental_events(df, stations, DIST["environmental_event"], rng)
+    inject_flatline_faults(df, DIST["fault_flatline"], rng)
+    inject_drift(df, DIST["drift"], rng)
+    drop_mask, gap_log = inject_comm_gaps(df, DIST["comm_gap"], rng)
 
-    remaining_pool = df.index.difference(env_idx).values.copy()
+    # NOW build the flat-random pool for the point categories, from
+    # whatever is still genuinely "normal" and not already marked for
+    # dropping (comm_gap) - guaranteed disjoint from every run-based
+    # category above by construction, not by a shuffle that predates them.
+    still_normal = (df["anomaly_type"] == "normal") & (~drop_mask)
+    remaining_pool = df.index[still_normal].values.copy()
     rng.shuffle(remaining_pool)
     all_idx = remaining_pool
     ptr = 0
 
-    # outlier/missing/duplicate are single-row events, so flat sampling is
-    # fine for them; flatline/drift/comm_gap need real per-station
-    # contiguous runs and are drawn separately (budget-based) below, so
-    # they're excluded from this flat pool entirely. "normal" absorbs
-    # whatever's left over after all budget-based categories draw from it.
     outlier_idx = all_idx[ptr: ptr + DIST["outlier"]]; ptr += DIST["outlier"]
     missing_idx = all_idx[ptr: ptr + DIST["missing"]]; ptr += DIST["missing"]
     dup_idx = all_idx[ptr: ptr + DIST["duplicate"]]; ptr += DIST["duplicate"]
-    normal_idx = all_idx[ptr:]  # everything left is normal (budget-based categories draw from this pool next)
+    normal_idx = all_idx[ptr:]  # everything left is normal
 
     inject_outliers(df, outlier_idx, rng)
     inject_missing(df, missing_idx, rng)
     # normal_idx rows are left untouched (already default "normal")
-
-    # flatline/drift/comm_gap are picked directly from each station's own
-    # chronological sequence of still-"normal" rows (not a flat cross-dataset
-    # sample), so each run is a genuine sustained, per-station, contiguous
-    # stretch that a rolling-variance/CUSUM/gap detector can actually find.
-    inject_flatline_faults(df, DIST["fault_flatline"], rng)
-    inject_drift(df, DIST["drift"], rng)
-    drop_mask, gap_log = inject_comm_gaps(df, DIST["comm_gap"], rng)
     dup_rows = inject_duplicates(df, dup_idx, rng)
 
     # Drop comm_gap rows (packet never arrived) and append duplicate rows

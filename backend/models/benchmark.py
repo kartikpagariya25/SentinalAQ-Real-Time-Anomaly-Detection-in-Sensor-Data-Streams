@@ -26,6 +26,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 import detectors as det
 import evaluate as ev
+import spatial_correlation as sc
 
 
 def load_dataset(path: str) -> pd.DataFrame:
@@ -134,6 +135,11 @@ def main():
     duplicate_pred = det.detect_duplicates(df)
     results["duplicate_rule"] = ev.evaluate_binary_detector(duplicate_true, duplicate_pred)
 
+    print("  STL residual (statsmodels)...")
+    stl_pred = det.detect_stl_residual(df)
+    results["stl_residual"] = ev.evaluate_binary_detector(value_anomaly_true, stl_pred)
+    results["stl_residual"]["env_event_fp_rate"] = ev.environmental_event_false_positive_rate(df, stl_pred)
+
     print("  Isolation Forest (PyOD)...")
     if_pred = det.detect_isolation_forest(df, contamination=args.contamination)
     results["isolation_forest"] = ev.evaluate_binary_detector(value_anomaly_true, if_pred)
@@ -143,6 +149,18 @@ def main():
     lof_pred = det.detect_lof(df, contamination=args.contamination)
     results["lof"] = ev.evaluate_binary_detector(value_anomaly_true, lof_pred)
     results["lof"]["env_event_fp_rate"] = ev.environmental_event_false_positive_rate(df, lof_pred)
+
+    # ------------------------------------------------------------------
+    # Spatial-correction pass: does each of the 3 model families still
+    # clear the env-event false-positive bar once composed with the
+    # spatial-correlation correction layer? This is what actually decides
+    # which model is fit to wire into the live stream, not the raw scores.
+    # ------------------------------------------------------------------
+    print("  applying spatial correction to stl/isolation_forest/lof...")
+    for name, pred in [("stl_residual", stl_pred), ("isolation_forest", if_pred), ("lof", lof_pred)]:
+        corrected, _ = sc.apply_spatial_correction(df, pred)
+        results[f"{name}_corrected"] = ev.evaluate_binary_detector(value_anomaly_true, corrected)
+        results[f"{name}_corrected"]["env_event_fp_rate"] = ev.environmental_event_false_positive_rate(df, corrected)
 
     # ------------------------------------------------------------------
     # Report

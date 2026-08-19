@@ -17,7 +17,6 @@ exactly like a real detector would.
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
 
 VALUE_COLS = ["pm25", "pm10", "no2", "co"]
 FEATURE_COLS = ["pm25", "pm10", "no2", "co", "temperature", "humidity"]
@@ -147,6 +146,49 @@ def detect_gaps(df: pd.DataFrame, expected_interval_minutes: int = 5,
 
 
 # ----------------------------------------------------------------------
+# B. Time-series model-based (STL decomposition + residual thresholding)
+# ----------------------------------------------------------------------
+def detect_stl_residual(df: pd.DataFrame, value_col: str = "pm25", period: int = 288,
+                         threshold: float = 3.5, min_periods_factor: int = 2) -> np.ndarray:
+    """
+    STL decomposition + residual z-score thresholding (Section 4.5B).
+    Removes trend+seasonal (diurnal) component per station, then flags
+    residuals that exceed `threshold` rolling std devs. Missing values are
+    interpolated for decomposition only; flags never land on those rows.
+    """
+    from statsmodels.tsa.seasonal import STL
+
+    flags = np.zeros(len(df), dtype=int)
+    stations = df["station_id"].to_numpy()
+    values = df[value_col].to_numpy()
+    idx_all = np.arange(len(df))
+    min_samples = min_periods_factor * period
+
+    for station_id in np.unique(stations):
+        idx = idx_all[stations == station_id]
+        series = pd.Series(values[idx])
+        valid = series.notna()
+        if valid.sum() < min_samples:
+            continue
+
+        interpolated = series.interpolate(limit_direction="both")
+        try:
+            resid = STL(interpolated, period=period, robust=True).fit().resid
+        except ValueError:
+            continue
+
+        resid_std = resid.rolling(period, min_periods=30).std().bfill()
+        resid_std = resid_std.replace(0, np.nan)
+        resid_std = resid_std.fillna(resid_std.median()).fillna(1.0)
+        z = (resid / resid_std).to_numpy()
+
+        station_flags = (np.abs(z) > threshold) & valid.to_numpy()
+        flags[idx[station_flags]] = 1
+
+    return flags
+
+
+# ----------------------------------------------------------------------
 # C. Machine learning detectors (PyOD)
 # ----------------------------------------------------------------------
 def _scored_subset(df: pd.DataFrame):
@@ -155,9 +197,44 @@ def _scored_subset(df: pd.DataFrame):
     return eligible
 
 
+def _station_normalized_matrix(df: pd.DataFrame, eligible: pd.Series) -> np.ndarray:
+    """
+    Z-score each feature WITHIN its own station before fitting, instead of a
+    single global StandardScaler across all stations pooled together.
+
+    Why this matters here specifically: station_profile drives a large,
+    systematic offset in raw pollutant levels (e.g. background ~pm25 15-60
+    vs industrial ~150+, per generate_sensor_dataset.py's baseline_mult).
+    A global scaler leaves that offset in the data, so an unsupervised
+    detector fit on the pooled matrix can partly learn "which station
+    profile is this row from" rather than "is this reading unusual FOR
+    THIS STATION" - which is the question we actually want answered.
+    Normalizing per station removes the profile-level offset and scale
+    difference first, so the remaining variance a detector sees is
+    genuinely about within-station deviation.
+
+    Station mean/std are computed over ALL of that station's rows,
+    including any injected anomalies - consistent with the rest of this
+    module's fully-unsupervised assumption (a real detector never sees
+    ground-truth labels), and consistent with how the previous global
+    StandardScaler was already being fit on unlabeled, anomaly-containing
+    data.
+    """
+    grp = df.loc[eligible].groupby("station_id")[FEATURE_COLS]
+    mean = grp.transform("mean")
+    std = grp.transform("std").replace(0, np.nan)
+    z = (df.loc[eligible, FEATURE_COLS] - mean) / std
+    return z.fillna(0.0).to_numpy()
+
+
 def detect_isolation_forest(df: pd.DataFrame, contamination: float = 0.04,
                              random_state: int = 42) -> np.ndarray:
-    """PyOD Isolation Forest over the multivariate feature set (Section 4.5C)."""
+    """
+    PyOD Isolation Forest over the multivariate feature set (Section 4.5C),
+    fit on PER-STATION-normalized features (see `_station_normalized_matrix`)
+    rather than raw pooled values, so station-profile differences in
+    baseline pollution level don't drown out genuine within-station anomalies.
+    """
     from pyod.models.iforest import IForest
 
     eligible = _scored_subset(df)
@@ -165,7 +242,7 @@ def detect_isolation_forest(df: pd.DataFrame, contamination: float = 0.04,
     if eligible.sum() == 0:
         return preds
 
-    X = StandardScaler().fit_transform(df.loc[eligible, FEATURE_COLS].to_numpy())
+    X = _station_normalized_matrix(df, eligible)
     clf = IForest(contamination=contamination, random_state=random_state, n_jobs=-1)
     clf.fit(X)
     preds[eligible.to_numpy()] = clf.labels_
@@ -174,7 +251,12 @@ def detect_isolation_forest(df: pd.DataFrame, contamination: float = 0.04,
 
 def detect_lof(df: pd.DataFrame, contamination: float = 0.04,
                n_neighbors: int = 20) -> np.ndarray:
-    """PyOD Local Outlier Factor over the multivariate feature set (Section 4.5C)."""
+    """
+    PyOD Local Outlier Factor over the multivariate feature set (Section
+    4.5C), fit on PER-STATION-normalized features (see
+    `_station_normalized_matrix`) for the same reason as
+    `detect_isolation_forest` above.
+    """
     from pyod.models.lof import LOF
 
     eligible = _scored_subset(df)
@@ -182,7 +264,7 @@ def detect_lof(df: pd.DataFrame, contamination: float = 0.04,
     if eligible.sum() == 0:
         return preds
 
-    X = StandardScaler().fit_transform(df.loc[eligible, FEATURE_COLS].to_numpy())
+    X = _station_normalized_matrix(df, eligible)
     clf = LOF(contamination=contamination, n_neighbors=n_neighbors, n_jobs=-1)
     clf.fit(X)
     preds[eligible.to_numpy()] = clf.labels_
