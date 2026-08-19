@@ -6,7 +6,15 @@ router = APIRouter()
 @router.get("/api/stations")
 def list_stations(request: Request):
     state = request.app.state.sentinelaq
-    return state.station_meta
+    result = []
+    for meta in state.station_meta:
+        hist = state.history.get(meta["station_id"])
+        if hist:
+            status = "fault" if hist[-1].get("flag") == 1 else "normal"
+        else:
+            status = "unknown"
+        result.append({**meta, "status": status})
+    return result
 
 
 @router.get("/api/stations/{station_id}/history")

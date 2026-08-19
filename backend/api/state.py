@@ -35,7 +35,13 @@ class AppState:
             sid: list(neighbors)
             for sid, neighbors in scoring.build_neighbor_map(df, scoring.SPATIAL_RADIUS_KM).items()
         }
-        return cls(speed_multiplier=speed_multiplier, station_meta=station_meta, neighbor_map=neighbor_map)
+        instance = cls(speed_multiplier=speed_multiplier, station_meta=station_meta, neighbor_map=neighbor_map)
+        # Pre-populate history for every known station so /api/stations/{id}/history
+        # and the WS snapshot cover all stations immediately, not just the ones that
+        # happen to have been scored already (get_or_create_station creates lazily).
+        for meta in station_meta:
+            instance.history[meta["station_id"]] = deque(maxlen=HISTORY_MAXLEN)
+        return instance
 
     def get_or_create_station(self, sid: str) -> scoring.StationState:
         if sid not in self.stations:

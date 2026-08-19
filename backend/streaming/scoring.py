@@ -42,7 +42,11 @@ class StationState:
             anomaly.LocalOutlierFactor(n_neighbors=LOF_NEIGHBORS), q=LOF_QUANTILE
         )
         self.lof_count = 0
-        self.z_hist = deque()  # (ts_ns, pm25_z), pruned to the spatial time window
+        # (ts_ns, pm25_z), pruned to the spatial time window during normal forward
+        # playback; maxlen is a safety cap for when StreamEngine wraps back to row 0
+        # (t jumps backward), which would otherwise make the time-based prune below
+        # permanently false and let this grow unbounded.
+        self.z_hist = deque(maxlen=500)
 
     def maybe_reset_lof(self):
         self.lof_count += 1

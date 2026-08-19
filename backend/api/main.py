@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import pandas as pd
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.state import AppState
 from api.stream_engine import StreamEngine
@@ -48,6 +49,17 @@ def create_app(dataset_path: str = "../sensor_data.csv",
             task.cancel()
 
     app = FastAPI(lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(stations_router)
     app.include_router(benchmark_router)
     app.include_router(status_router)

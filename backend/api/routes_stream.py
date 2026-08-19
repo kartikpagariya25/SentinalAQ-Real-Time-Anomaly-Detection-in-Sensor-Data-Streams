@@ -21,14 +21,20 @@ async def stream_ws(websocket: WebSocket):
 
     try:
         while True:
-            msg = await websocket.receive_json()
-            action = msg.get("action")
-            if action == "set_speed" and "value" in msg:
-                state.speed_multiplier = float(msg["value"])
-            elif action == "pause":
-                state.paused = True
-            elif action == "resume":
-                state.paused = False
+            try:
+                msg = await websocket.receive_json()
+                action = msg.get("action")
+                if action == "set_speed" and "value" in msg:
+                    state.speed_multiplier = float(msg["value"])
+                elif action == "pause":
+                    state.paused = True
+                elif action == "resume":
+                    state.paused = False
+            except (ValueError, TypeError, AttributeError, KeyError):
+                # Malformed control message - invalid JSON (json.JSONDecodeError is a
+                # ValueError subclass), a non-dict JSON payload, or a non-numeric
+                # speed value. Ignore it and keep the connection open.
+                continue
     except WebSocketDisconnect:
         pass
     finally:

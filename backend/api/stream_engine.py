@@ -12,6 +12,13 @@ import scoring  # noqa: E402
 from api.state import AppState
 
 
+def compute_sleep_seconds(real_delta_seconds: float, speed_multiplier: float, cap: float = 5.0) -> float:
+    """Pure function for the replay pacing math: how long to sleep before emitting
+    the next row, given the real-world gap since the previous row (globally, across
+    all interleaved stations) and the desired playback speed multiplier."""
+    return min(real_delta_seconds / max(speed_multiplier, 1e-6), cap)
+
+
 class StreamEngine:
     def __init__(self, df: pd.DataFrame, state: AppState):
         self.df = df.sort_values("timestamp").reset_index(drop=True)
@@ -26,9 +33,11 @@ class StreamEngine:
         nan_mask = self.df[self._core_cols].isna().any(axis=1).to_numpy()
         timestamps_iso = self.df["timestamp"].astype(str).to_numpy()
 
-        prev_ts_by_station = {}
-
         while True:  # loop the dataset forever so a local demo never runs dry
+            prev_ts = None  # global (not per-station): consecutive rows in the sorted
+            # stream interleave all stations, so the real-world gap between them is far
+            # smaller than any single station's own cadence. Reset each pass so a
+            # wraparound to row 0 doesn't produce a huge negative delta.
             for i in range(n):
                 while self.state.paused:
                     await asyncio.sleep(0.1)
@@ -37,11 +46,11 @@ class StreamEngine:
                 t = int(ts_ns[i])
                 state_obj = self.state.get_or_create_station(sid)
 
-                real_delta = 300.0  # seconds; dataset default cadence
-                if sid in prev_ts_by_station:
-                    real_delta = max(0.0, (t - prev_ts_by_station[sid]) / 1e9)
-                prev_ts_by_station[sid] = t
-                sleep_for = min(real_delta / max(self.state.speed_multiplier, 1e-6), 5.0)
+                real_delta = 300.0  # seconds; dataset default cadence, used for the first row
+                if prev_ts is not None:
+                    real_delta = max(0.0, (t - prev_ts) / 1e9)
+                prev_ts = t
+                sleep_for = compute_sleep_seconds(real_delta, self.state.speed_multiplier)
                 # Below typical OS timer granularity (~15ms on Windows), a real sleep
                 # rounds up to a full tick and throttles throughput for no benefit at
                 # high speed_multiplier. Use asyncio.sleep(0) instead: it still yields
