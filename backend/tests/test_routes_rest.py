@@ -56,3 +56,31 @@ def test_stream_status_endpoint(client):
     body = resp.json()
     assert body["paused"] is False
     assert "rows_processed" in body
+
+
+@pytest.fixture
+def client_with_missing_cell(tiny_dataset_csv, tmp_path):
+    """Mirrors the real backend/benchmark_results_v3.csv, where missing_rule and
+    duplicate_rule rows have no env_event_fp_rate value (empty cell -> NaN)."""
+    bench_path = tmp_path / "benchmark_results_v3_missing.csv"
+    pd.DataFrame({
+        "": ["lof", "missing_rule", "duplicate_rule", "isolation_forest"],
+        "precision": [0.23, 0.50, 0.60, 0.41],
+        "recall": [0.25, 0.30, 0.35, 0.45],
+        "f1": [0.24, 0.37, 0.44, 0.43],
+        "env_event_fp_rate": [0.07, None, None, 0.94],
+    }).to_csv(bench_path, index=False)
+
+    app = create_app(dataset_path=tiny_dataset_csv, benchmark_csv_path=str(bench_path), initial_speed=1_000_000)
+    with TestClient(app) as c:
+        yield c
+
+
+def test_benchmark_endpoint_handles_nan_cells(client_with_missing_cell):
+    resp = client_with_missing_cell.get("/api/benchmark")
+    assert resp.status_code == 200
+    body = resp.json()
+    rows_by_method = {row["method"]: row for row in body["table"]}
+    assert rows_by_method["missing_rule"]["env_event_fp_rate"] is None
+    assert rows_by_method["duplicate_rule"]["env_event_fp_rate"] is None
+    assert rows_by_method["lof"]["env_event_fp_rate"] == pytest.approx(0.07)

@@ -19,5 +19,8 @@ def get_benchmark(request: Request):
     path = request.app.state.benchmark_csv_path
     df = pd.read_csv(path)
     df = df.rename(columns={df.columns[0]: "method"})
+    # NaN is not valid JSON; convert to None -> null. astype(object) first, otherwise
+    # pandas coerces None back to NaN on numeric (float64) columns.
+    df = df.astype(object).where(pd.notna(df), None)
     table = df.to_dict(orient="records")
     return {"table": table, "winner": WINNER, "why": WHY}
