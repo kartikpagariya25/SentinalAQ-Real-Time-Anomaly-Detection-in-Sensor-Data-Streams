@@ -19,7 +19,7 @@ export default function StationCard({ stationId, latest }: { stationId: string; 
           <span className="text-sm text-text-primary">{stationId}</span>
           <SeverityTag severity={severity} />
         </div>
-        {sparkData.length > 1 && (
+        {expanded && sparkData.length > 1 && (
           <div className="h-10 mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={sparkData}>

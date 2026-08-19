@@ -3,9 +3,13 @@ import type { DetectionEvent } from "../types";
 
 const EVENTS_CAP = 200;
 
+export interface StreamEvent extends DetectionEvent {
+  seq: number;
+}
+
 export interface StreamState {
   stations: Record<string, DetectionEvent | null>;
-  events: DetectionEvent[];
+  events: StreamEvent[];
 }
 
 export const initialStreamState: StreamState = { stations: {}, events: [] };
@@ -14,11 +18,17 @@ type IncomingMessage =
   | { type: "snapshot"; stations: Record<string, DetectionEvent | null> }
   | (DetectionEvent & { type: "detection" });
 
+// Monotonically-incrementing sequence counter. Backend can emit multiple detections
+// for the same station at the same timestamp, so station_id+timestamp is not a safe
+// unique identity for React list keys — this counter guarantees one is always available.
+let nextSeq = 0;
+
 export function applyMessage(state: StreamState, msg: IncomingMessage): StreamState {
   if (msg.type === "snapshot") {
     return { ...state, stations: { ...msg.stations } };
   }
-  const events = [msg, ...state.events];
+  const stamped: StreamEvent = { ...msg, seq: nextSeq++ };
+  const events = [stamped, ...state.events];
   if (events.length > EVENTS_CAP) events.length = EVENTS_CAP;
   return {
     stations: { ...state.stations, [msg.station_id]: msg },

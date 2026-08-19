@@ -14,7 +14,15 @@ describe("applyMessage", () => {
     const detection = { type: "detection", station_id: "RESP-0001", flag: 1, spatial_label: "isolated_fault" } as any;
     const state = applyMessage(initialStreamState, detection);
     expect(state.stations["RESP-0001"]).toEqual(detection);
-    expect(state.events[0]).toEqual(detection);
+    expect(state.events[0]).toEqual({ ...detection, seq: expect.any(Number) });
+  });
+
+  it("assigns a unique seq to events even with identical station_id + timestamp", () => {
+    const dup = { type: "detection", station_id: "RESP-0001", flag: 1, spatial_label: "isolated_fault", timestamp: "same" } as any;
+    let state = applyMessage(initialStreamState, dup);
+    state = applyMessage(state, dup);
+    expect(state.events.length).toBe(2);
+    expect(state.events[0].seq).not.toBe(state.events[1].seq);
   });
 
   it("caps events at 200", () => {

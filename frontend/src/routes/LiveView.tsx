@@ -49,7 +49,7 @@ export default function LiveView() {
       </div>
       <div className="rounded-md border border-border-weak divide-y divide-border-weak">
         {events.slice(0, 20).map((e) => (
-          <div key={`${e.station_id}-${e.timestamp}`} className="flex items-center justify-between px-4 py-2 text-sm">
+          <div key={e.seq} className="flex items-center justify-between px-4 py-2 text-sm">
             <span className="text-text-primary">{e.station_id}</span>
             <span className="text-text-secondary">{e.timestamp}</span>
             <SeverityTag severity={getSeverity(e)} />
