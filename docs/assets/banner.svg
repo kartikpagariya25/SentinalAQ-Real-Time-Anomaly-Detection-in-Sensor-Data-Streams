@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="SentinelAQ banner">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B3B3A"/><stop offset="0.55" stop-color="#0F766E"/><stop offset="1" stop-color="#0EA5E9"/></linearGradient></defs>
+<rect width="1200" height="280" rx="18" fill="url(#g)"/>
+<circle cx="1010" cy="140" r="90" fill="none" stroke="#ffffff" stroke-opacity="0.20" stroke-width="2"/>
+<circle cx="1010" cy="140" r="150" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="1010" cy="140" r="210" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+<circle cx="1010" cy="140" r="270" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+<circle cx="543" cy="97" r="2" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="871" cy="142" r="3" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="196" cy="25" r="5" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="652" cy="224" r="2" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="1125" cy="157" r="4" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="413" cy="231" r="2" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="499" cy="257" r="2" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="593" cy="224" r="4" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="397" cy="99" r="4" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="822" cy="42" r="4" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="854" cy="149" r="3" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="566" cy="141" r="4" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="674" cy="21" r="4" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="698" cy="237" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="927" cy="173" r="4" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="984" cy="61" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="591" cy="228" r="2" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="154" cy="138" r="4" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="1025" cy="199" r="4" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="460" cy="37" r="5" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="963" cy="90" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="952" cy="211" r="4" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="466" cy="251" r="4" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="186" cy="201" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="546" cy="51" r="4" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="655" cy="137" r="2" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="791" cy="198" r="2" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="729" cy="24" r="4" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="718" cy="59" r="5" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="219" cy="95" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="658" cy="54" r="4" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="385" cy="104" r="2" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="151" cy="136" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="802" cy="94" r="2" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="484" cy="128" r="3" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="181" cy="35" r="2" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="405" cy="172" r="3" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="143" cy="159" r="5" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="570" cy="102" r="2" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="1143" cy="94" r="5" fill="#ffffff" fill-opacity="0.22"/>
+<circle cx="470" cy="142" r="3" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="958" cy="125" r="5" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="508" cy="127" r="5" fill="#ffffff" fill-opacity="0.10"/>
+<circle cx="936" cy="232" r="3" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="444" cy="28" r="2" fill="#ffffff" fill-opacity="0.16"/>
+<circle cx="578" cy="82" r="3" fill="#ffffff" fill-opacity="0.10"/>
+<g transform="translate(70 78) scale(2.6666666666666665)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/></g>
+<text x="160" y="125" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="68" font-weight="700" fill="#ffffff">SentinelAQ</text>
+<text x="162" y="168" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="26" fill="#E0F7FA">Real-time anomaly detection for air-quality sensor streams</text>
+<text x="162" y="206" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" fill="#B2EBF2">Built for Respirer Living Sciences  |  Atmos devices</text>
+<rect x="162" y="226" width="116" height="30" rx="15" fill="#66BB6A"/><text x="220" y="247" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#0B1F1F">VALID</text>
+<rect x="292" y="226" width="116" height="30" rx="15" fill="#FFB74D"/><text x="350" y="247" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#0B1F1F">REVIEW</text>
+<rect x="422" y="226" width="116" height="30" rx="15" fill="#EF5350"/><text x="480" y="247" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#0B1F1F">INVALID</text>
+</svg>
