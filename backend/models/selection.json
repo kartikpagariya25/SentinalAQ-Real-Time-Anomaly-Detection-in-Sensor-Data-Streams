@@ -1,0 +1,15 @@
+{
+  "winner": "lightgbm_tuned",
+  "base": "lightgbm",
+  "params": {
+    "num_leaves": 127,
+    "learning_rate": 0.1,
+    "n_estimators": 200,
+    "min_child_samples": 20,
+    "colsample_bytree": 0.6
+  },
+  "score": 0.9930421109868149,
+  "rule": "maximise share of readings decided automatically (coverage) while the safety limits (invalid precision >= 0.99, <= 5% of faults (and <= 10% of any single fault type) slipping through as VALID, <= 3% of real events auto-rejected) are met on validation; candidates within 0.003 coverage are separated by PR-AUC (how well faults are ranked above good readings), then lowest latency",
+  "members": [],
+  "seconds": 2498.029911518097
+}
