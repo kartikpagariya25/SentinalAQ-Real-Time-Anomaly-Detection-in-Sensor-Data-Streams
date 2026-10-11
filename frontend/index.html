@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SentinelAQ · Live Anomaly Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <img src="./public/logo (1).png" alt="SentinelAQ" class="brand-logo" />
+    </div>
+
+    <a class="sponsor" href="https://respirer.in" target="_blank" rel="noopener">
+      <span class="sponsor-label">Sponsored by</span>
+      <img src="https://cms.respirer.in/wp-content/uploads/2022/12/respirer-logo.png" alt="Respirer Living Sciences" class="sponsor-logo" loading="lazy" />
+    </a>
+
+    <nav class="nav">
+      <button class="nav-item active" data-section="overview">
+        <i class="fa-solid fa-chart-column"></i>
+        <span>Overview</span>
+      </button>
+      <button class="nav-item" data-section="stream">
+        <i class="fa-solid fa-wave-square"></i>
+        <span>Live Stream</span>
+      </button>
+      <button class="nav-item" data-section="devices">
+        <i class="fa-solid fa-microchip"></i>
+        <span>Devices</span>
+      </button>
+      <button class="nav-item" data-section="analysis">
+        <i class="fa-solid fa-magnifying-glass-chart"></i>
+        <span>Analysis</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="api-config">
+        <label for="apiBase">Backend URL</label>
+        <input id="apiBase" type="text" value="http://localhost:8000" spellcheck="false" />
+        <button id="apiSave">Connect</button>
+      </div>
+      <div class="live-pill" id="connStatus">
+        <span class="dot"></span>
+        <span id="connLabel">Connecting…</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-label="Toggle menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div class="topbar-title">
+        <h2 id="pageTitle">Overview</h2>
+        <span class="topbar-sub" id="pageSub">Network health in the last hour</span>
+      </div>
+      <div class="topbar-right">
+        <span class="clock" id="clock">--:--:--</span>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle theme">
+          <i class="fa-solid fa-sun icon-sun"></i>
+          <i class="fa-solid fa-moon icon-moon"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- OVERVIEW -->
+      <section class="panel" id="overview">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-top"><span class="kpi-label">Devices Reporting</span><span class="kpi-icon"><i class="fa-solid fa-satellite-dish"></i></span></div>
+            <span class="kpi-value" id="kpiDevices">–</span>
+            <span class="kpi-sub" id="kpiModel">model: –</span>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top"><span class="kpi-label">Readings Stored</span><span class="kpi-icon"><i class="fa-solid fa-database"></i></span></div>
+            <span class="kpi-value" id="kpiReadings">–</span>
+            <span class="kpi-sub" id="kpiTicks">– live ticks</span>
+          </div>
+          <div class="kpi-card accent-green">
+            <div class="kpi-top"><span class="kpi-label">Valid Rate (1h)</span><span class="kpi-icon"><i class="fa-solid fa-circle-check"></i></span></div>
+            <span class="kpi-value" id="kpiValidPct">–</span>
+            <span class="kpi-sub" id="kpiValidCount">– valid readings</span>
+          </div>
+          <div class="kpi-card accent-amber">
+            <div class="kpi-top"><span class="kpi-label">Under Review (1h)</span><span class="kpi-icon"><i class="fa-solid fa-hourglass-half"></i></span></div>
+            <span class="kpi-value" id="kpiReview">–</span>
+            <span class="kpi-sub">Needs confirmation</span>
+          </div>
+          <div class="kpi-card accent-red">
+            <div class="kpi-top"><span class="kpi-label">Flagged Invalid (1h)</span><span class="kpi-icon"><i class="fa-solid fa-circle-xmark"></i></span></div>
+            <span class="kpi-value" id="kpiInvalid">–</span>
+            <span class="kpi-sub">Sensor faults caught</span>
+          </div>
+          <div class="kpi-card accent-blue">
+            <div class="kpi-top"><span class="kpi-label">Mean Confidence (1h)</span><span class="kpi-icon"><i class="fa-solid fa-gauge-high"></i></span></div>
+            <span class="kpi-value" id="kpiConfidence">–</span>
+            <span class="kpi-sub" id="kpiEvents">– pollution events</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Network PM2.5</h2>
+                <span class="card-sub">Last 30 minutes · real-time ingest</span>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Verdict Split</h2>
+                <span class="card-sub">Past hour</span>
+              </div>
+            </div>
+            <div class="chart-wrap chart-wrap-small"><canvas id="verdictChart"></canvas></div>
+            <div class="legend-row" id="verdictLegend"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>City Summary</h2>
+              <span class="card-sub">Readings grouped by reporting city</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="cityTable">
+              <thead><tr><th>City</th><th>Readings</th><th>Avg PM2.5</th><th>Valid</th><th>Review</th><th>Invalid</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div class="empty-state" id="cityEmpty" hidden>
+              <span>No city data yet</span>
+              <small>Readings will appear here once the backend starts streaming.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LIVE STREAM -->
+      <section class="panel hidden" id="stream">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Live Sensor Chart</h2>
+              <span class="card-sub">Rolling window of the most recent 60 ticks</span>
+            </div>
+            <div class="controls">
+              <label for="deviceSelect">Device</label>
+              <select id="deviceSelect"></select>
+              <label for="metricSelect">Metric</label>
+              <select id="metricSelect">
+                <option value="pm25">PM2.5 (µg/m³)</option>
+                <option value="temp">Temperature (°C)</option>
+                <option value="rh">Humidity (%)</option>
+              </select>
+            </div>
+          </div>
+          <div class="chart-wrap chart-wrap-tall"><canvas id="liveChart"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Incoming Readings</h2>
+              <span class="card-sub">Latest 120 rows, newest first</span>
+            </div>
+            <span class="count-pill" id="streamCount">0 readings</span>
+          </div>
+          <div class="table-wrap table-wrap-scroll">
+            <table id="streamTable">
+              <thead><tr><th>Time</th><th>Device</th><th>City</th><th>PM2.5</th><th>Temp</th><th>RH</th><th>Verdict</th><th>Type</th><th>Conf.</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div class="empty-state" id="streamEmpty">
+              <span>Waiting for live data…</span>
+              <small>Readings will stream in here the moment the socket connects.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEVICES -->
+      <section class="panel hidden" id="devices">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Device Fleet</h2>
+              <span class="card-sub" id="deviceFleetSub">– devices online</span>
+            </div>
+          </div>
+          <div class="device-grid" id="deviceGrid"></div>
+          <div class="empty-state" id="deviceEmpty" hidden>
+            <span>No devices found</span>
+            <small>Check that your backend API is reachable from this page.</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- ANALYSIS -->
+      <section class="panel hidden" id="analysis">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Anomaly Types</h2>
+                <span class="card-sub">All-time breakdown by detected class</span>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="anomalyChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Recent Flagged Events</h2>
+                <span class="card-sub">Review and invalid verdicts only</span>
+              </div>
+            </div>
+            <div class="table-wrap table-wrap-scroll">
+              <table id="alertTable">
+                <thead><tr><th>Time</th><th>Device</th><th>Verdict</th><th>Reason</th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <div class="empty-state" id="alertEmpty">
+                <span>No flagged events yet</span>
+                <small>Review and invalid readings will be listed here as they arrive.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      SentinelAQ · live readings scored by the trained LightGBM pipeline · connect the backend URL in the sidebar to begin streaming
+    </footer>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
