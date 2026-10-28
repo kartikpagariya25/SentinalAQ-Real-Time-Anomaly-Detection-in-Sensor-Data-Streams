@@ -136,7 +136,10 @@ def run_cli(a):
 
 def run_ingest_sim(a):
     from .ingest import Ingestor, Store
+    from .priors import CITIES as ALL_CITIES
     cities = [c.strip() for c in a.cities.split(",") if c.strip()]
+    if any(c.lower() == "all" for c in cities):
+        cities = list(ALL_CITIES.keys())
     store = Store(a.db) if a.db else Store()
     ing = Ingestor(load_bundle(), store)
     sim = simulate(a.start, a.days, cities, 2026)
