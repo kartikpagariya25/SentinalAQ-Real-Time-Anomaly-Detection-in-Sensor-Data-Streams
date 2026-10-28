@@ -114,3 +114,89 @@ def cmd_train(seed=7):
     save_bundle(bundle)
     ui.ok("model saved -> models/detector.joblib")
     return bundle
+
+
+# short label, full form, and a 2-3 line description. Every model here is a CLASSIFIER.
+MODELS = {
+    "logreg": ("Logistic Regression", "Logistic Regression",
+               "Simplest, linear classifier - separates classes with a straight boundary. Fast but cannot capture feature interactions (RH jump while temp is flat), so it decides almost nothing safely here."),
+    "random_forest": ("Random Forest", "Random Forest",
+                      "Many decision trees on random samples/features; the majority vote decides. Robust and low-overfit, but slower to train and its fault ranking trails the boosting models."),
+    "extra_trees": ("Extra Trees", "Extremely Randomized Trees",
+                    "Like Random Forest but split points are random too, so it trains very fast. Highest coverage, but the weakest PR-AUC - weaker at ranking faults above good readings."),
+    "extra_trees_tuned": ("Extra Trees (tuned)", "Extremely Randomized Trees (tuned)",
+                          "Hyper-parameter-tuned Extra Trees. Scores stayed almost identical - tuning did not move the needle here."),
+    "hist_gb": ("Hist Gradient Boosting", "Histogram-based Gradient Boosting",
+                "Gradient boosting that buckets features into histograms for speed; trees are added one by one, each fixing the previous errors. A solid, fast all-rounder."),
+    "xgboost": ("XGBoost", "Extreme Gradient Boosting",
+                "Popular, highly optimised gradient boosting. Very fast at scoring and strong overall, but its PR-AUC here was just below LightGBM."),
+    "mlp": ("MLP (neural net)", "Multi-Layer Perceptron (neural network)",
+            "A small neural network. Good ranking, but it pushes more readings to REVIEW (lower coverage) and needs scaling/tuning care - no better than trees on this tabular data."),
+    "lightgbm": ("LightGBM", "Light Gradient Boosting Machine",
+                 "Microsoft's gradient boosting with leaf-wise tree growth - fast and accurate. Best auto-INVALID precision and strong PR-AUC."),
+    "lightgbm_tuned": ("LightGBM (tuned)", "Light Gradient Boosting Machine (tuned)",
+                       "Tuned LightGBM - the WINNER. Best PR-AUC (ranks faults above good readings best), clears every safety limit, and stays fast."),
+    "soft_vote_top3": ("Soft Vote (top 3)", "Soft-Voting Ensemble of the top 3 models",
+                       "Not a new model - it averages the probabilities of the three best models. Slightly steadier but 5x slower with no real gain, so it was rejected."),
+}
+NAMES = {k: v[0] for k, v in MODELS.items()}
+
+
+def _info(key):
+    return MODELS.get(key) or (key, key, "")
+
+
+def cmd_models(info=False):
+    sel_file = MODEL_DIR / "selection.json"
+    if not sel_file.exists():
+        raise SystemExit("no selection.json yet - run `python -m app.cli compare`")
+    sel = json.loads(sel_file.read_text())
+    winner = sel["winner"]
+
+    ui.title("Trained models and their metrics  (all are CLASSIFICATION models)")
+    comp = MODEL_DIR.parent / "reports" / "evaluation" / "model_comparison.csv"
+    if not comp.exists():
+        comp = MODEL_DIR / "model_comparison.csv"
+    if comp.exists():
+        df = pd.read_csv(comp).sort_values("coverage", ascending=False)
+        rows, win_idx = [], None
+        for i, r in enumerate(df.itertuples()):
+            if r.model == winner:
+                win_idx = i
+            short, full, _ = _info(r.model)
+            rows.append([
+                short, full, "classification",
+                f"{r.coverage:.1%}", f"{r.inv_precision:.3f}", f"{r.miss_rate:.1%}",
+                f"{r.slip_next_months:.1%}", f"{r.pr_auc:.3f}", f"{r.f1:.3f}",
+                f"{r.fit_s:.0f}s", f"{r.ms_per_row:.3f}", "yes" if r.constraints_held else "NO",
+            ])
+        ui.table(
+            ["model", "full form", "type", "auto-decided", "inv precision", "faults missed", "slip next mo", "PR-AUC", "F1", "fit", "ms/row", "limits ok"],
+            rows, highlight=lambda i, _: i == win_idx,
+        )
+        ui.step("auto-decided = share of readings the model decides without a human (higher is better)")
+        ui.step("inv precision = when it says INVALID, how often it is truly a fault (safety floor 0.99)")
+        ui.step("faults missed = faults let through as VALID | PR-AUC = how well faults rank above good readings")
+        ui.step("run with --info for a short description of each model")
+    else:
+        ui.warn("model_comparison.csv not found - run `python -m app.cli evaluate` for full metrics")
+
+    if info:
+        ui.title("Model guide  (what each one is)")
+        order = list(df["model"]) if comp.exists() else list(MODELS)
+        for key in order:
+            short, full, desc = _info(key)
+            tag = "  <-- selected" if key == winner else ""
+            print(ui.paint(f"  {short}  ({full}) [classification]{tag}", ui.BOLD))
+            print(f"    {desc}\n")
+
+    ui.title("Selected model")
+    params = ", ".join(f"{k}={v}" for k, v in (sel.get("params") or {}).items())
+    ui.table(["item", "value"], [
+        ["winner", NAMES.get(winner, winner)],
+        ["base family", NAMES.get(sel.get("base", winner), sel.get("base", "-"))],
+        ["hyper-parameters", params or "defaults"],
+        ["selection score (coverage)", f"{sel.get('score', 0):.4f}"],
+    ])
+    ui.step("Why this one:")
+    print("  " + sel.get("rule", "").replace("; ", "\n  - ").replace("while ", "while\n  - "))
