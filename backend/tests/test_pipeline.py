@@ -98,3 +98,21 @@ def test_ingest_dedupes_and_handles_late_data(bundle, small):
     assert late["scored"] > 0
     assert ing.store.count() == len(raw[raw["timestamp"].isin(ticks)])
     assert ing.summary(ticks[3])["readings"] > 0
+
+
+def test_range_reports_and_pdf(bundle, small):
+    from app.ingest import period_window
+    from app.report_pdf import build_report_pdf
+
+    raw = small[small["timestamp"] >= "2025-04-01"][["timestamp", "device_id", "city", "pm25", "temp", "rh"]]
+    ing = Ingestor(bundle, Store(":memory:"))
+    ing.ingest(raw)
+    anchor = pd.Timestamp("2025-04-10")
+    for period in ("daily", "weekly", "monthly", "yearly"):
+        start, end = period_window(period, anchor)
+        s = ing.summary_range(start, end, period)
+        assert s["readings"] == s["valid"] + s["invalid"] + s["review"]
+        assert isinstance(s["by_day"], list)
+    weekly = ing.summary_range(*period_window("weekly", anchor), "weekly")
+    assert build_report_pdf(weekly)[:4] == b"%PDF"
+    assert len(ing.store.recent(5)) <= 5
