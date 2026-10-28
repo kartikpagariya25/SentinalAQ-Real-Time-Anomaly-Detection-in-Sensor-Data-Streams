@@ -2,10 +2,12 @@
 __pycache__/
 *.pyc
 node_modules/
+dist/
 backend/data/synthetic/
 backend/data/raw/
 backend/data/live/
 backend/models/*.joblib
+backend/models/_bakeoff_stage12.joblib
 backend/reports/
 .pytest_cache/
 *.zip
@@ -13,5 +15,5 @@ backend/reports/
 .superpowers/
 .env
 *.env
-backend/models/_bakeoff_stage12.joblib
+!frontend/.env.example
 push.ps1

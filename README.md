@@ -7,9 +7,9 @@
   <img src="https://img.shields.io/badge/LightGBM-selected%20model-0EA5E9" alt="LightGBM">
   <img src="https://img.shields.io/badge/scikit--learn-calibration-F7931E?logo=scikitlearn&logoColor=white" alt="scikit-learn">
   <img src="https://img.shields.io/badge/FastAPI-ingestion%20API-009688?logo=fastapi&logoColor=white" alt="FastAPI">
-  <img src="https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit">
+  <img src="https://img.shields.io/badge/React-live%20dashboard-61DAFB?logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/SQLite-store-003B57?logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/tests-6%20passed-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/tests-7%20passed-brightgreen" alt="tests">
   <img src="https://img.shields.io/badge/data-synthetic%20%2B%201%20real%20file-lightgrey" alt="data">
 </p>
 
@@ -35,81 +35,81 @@ SentinelAQ checks each reading as it arrives and answers: **is this a sensor fau
 2. **LightGBM** looks at the last 192 hours of the device and the nearby devices in the same city (40 features) and gives a fault probability for 9 classes.
 3. **Isotonic calibration** makes the probability honest (70% means about 70%).
 4. **3-way policy**: `p_fault < 0.29` VALID, `p_fault > 0.83` INVALID, otherwise REVIEW. Rules always win over the model.
-5. **Reason engine** writes the verdict in plain words. Everything is stored in SQLite and shown on the dashboard.
+5. **Reason engine** writes the verdict in plain words. Everything is stored in SQLite and shown on the live dashboard.
+
+<p align="center">
+  <img src="docs/assets/dashboard.png" alt="SentinelAQ live dashboard" width="100%">
+</p>
+<p align="center"><sub>Live stream view — incoming readings scored in real time, with KPIs, verdicts over time and an anomaly feed. The Reports tab adds daily / weekly / monthly / yearly summaries with CSV and PDF export.</sub></p>
 
 ## 3. Run it (Windows PowerShell)
 
-### 3.1 One-time setup
+### 3.1 One command (recommended)
+
+`run.ps1` sets up the backend venv, installs everything, generates data and trains the model on the first run, runs the tests, then starts the **API + a demo live feed + the dashboard** together.
 
 ```powershell
 git clone https://github.com/kartikpagariya25/SentinalAQ-Real-Time-Anomaly-Detection-in-Sensor-Data-Streams.git SentinalAQ
 cd SentinalAQ
-git checkout rebuild-v2
+Set-ExecutionPolicy -Scope Process RemoteSigned
+.\run.ps1
+```
+
+- Dashboard: `http://127.0.0.1:5173`
+- API + Swagger: `http://127.0.0.1:8000/docs`
+
+Flags: `.\run.ps1 -SetupOnly` (install only), `.\run.ps1 -NoFeed` (no demo feed), `.\run.ps1 -Port 9000`.
+
+Put `device_with_anomaly.xlsx` in `backend\data\raw\` before the first run. Data files are gitignored, so they are never in the repo.
+
+### 3.2 Manual setup (if you want the steps)
+
+```powershell
 cd backend
 python -m venv .venv
 Set-ExecutionPolicy -Scope Process RemoteSigned
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
 
-Copy `device_with_anomaly.xlsx` into `backend\data\raw\`. Data files are gitignored, so they are never in the repo.
-
-### 3.2 Build the system (run in this order, inside `backend`)
-
-```powershell
 python -m app.cli profile          # learn patterns from the real file
 python -m app.cli generate         # synthetic network: 3 years, 67 devices, 10 cities (~1.76 M rows)
-python -m app.cli peek             # quick look at the synthetic data
 python -m app.cli train            # train winner, calibrate, set policy (~1 min)
 python -m app.cli evaluate         # full test report -> reports\evaluation
-python -m app.cli learning-curve   # does more data help?
-python -m pytest -q                # 6 tests
+python -m pytest -q                # 7 tests
 ```
 
-`compare` (the 9-model bake-off, about 45 min) is optional. The winner is already saved in `models\selection.json`, so `train` works without it.
+`compare` (the 9-model bake-off, ~45 min) is optional — the winner is already in `models\selection.json`, so `train` works without it. Use `compare --resume` to reuse saved stage 1-2 results.
 
-```powershell
-python -m app.cli compare            # fresh run
-python -m app.cli compare --resume   # reuse the saved stage 1-2 results
-```
-
-### 3.3 Use it
+### 3.3 Explore the data (CLI)
 
 ```powershell
 python -m app.cli peek --city Delhi --faults-only --rows 30
 python -m app.cli peek --device DEL-01 --start 2025-11-01 --end 2025-11-04 --rows 72
-python -m app.cli peek --city Pune --export pune.csv
 python -m app.cli stream --days 2 --cities Delhi,Pune --delay 0.3 --only-flagged
-python -m app.cli ingest-sim --days 2 --cities Delhi,Pune
-python -m app.cli serve --port 8000
 ```
 
-Dashboard (second terminal, venv active):
+### 3.4 Live dashboard
+
+React (Vite + Tailwind + Recharts), talks to the API.
 
 ```powershell
-cd SentinalAQ\backend
-streamlit run ..\frontend\dashboard.py
+cd backend ; python -m app.cli serve --port 8000     # terminal 1: API
+cd backend ; python -m app.cli live-feed --loop    # terminal 2: push demo readings over HTTP
+cd frontend ; npm install ; npm run dev              # terminal 3: dashboard
 ```
 
-Tabs: **Live stream** (what the API stored) and **Synthetic data explorer**.
+- **Live stream** tab — KPIs, verdicts over time, an anomaly feed and the incoming-reading table, all refreshing every 3 s.
+- **Reports** tab — pick daily / weekly / monthly / yearly + a date, see the summary and charts, download **CSV** or **PDF**.
 
-### 3.4 API
+The API URL is configurable: copy `frontend\.env.example` to `frontend\.env` and set `VITE_API_URL`.
 
-Swagger UI: `http://127.0.0.1:8000/docs`
+### 3.5 Connect your pipeline (ingestion)
 
-| Method | Path | What it does |
-|---|---|---|
-| POST | `/ingest` | send a list of readings, get verdicts back |
-| POST | `/close-hour/{ts}` | mark devices that sent nothing this hour as dropout |
-| GET | `/readings?date=&device=&verdict=&limit=` | stored readings |
-| GET | `/report/{date}?format=json\|csv` | day report |
-| GET | `/health` | status |
+Respirer's pipeline pushes readings to `POST /ingest` and gets a verdict back for each. That is the whole integration — one HTTP call per batch. Example: `backend\examples\push_client.py`.
 
 ```powershell
 $body = '[{"timestamp":"2026-09-16T09:00:00","device_id":"DEL-01","city":"Delhi","pm25":3333,"temp":31.2,"rh":48}]'
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ingest -ContentType "application/json" -Body $body
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/close-hour/2026-09-16T09:00:00
-Invoke-RestMethod "http://127.0.0.1:8000/report/2026-09-16?format=csv"
 ```
 
 ```bash
@@ -117,13 +117,37 @@ curl -X POST http://127.0.0.1:8000/ingest -H "Content-Type: application/json" \
   -d '[{"timestamp":"2026-09-16T09:00:00","device_id":"DEL-01","city":"Delhi","pm25":3333,"temp":31.2,"rh":48}]'
 ```
 
-### 3.5 Push to GitHub
+| Method | Path | What it does |
+|---|---|---|
+| POST | `/ingest` | send a list of readings, get verdicts back |
+| POST | `/close-hour/{ts}` | mark devices that sent nothing this hour as dropout |
+| GET | `/readings?date=&device=&verdict=&limit=` | stored readings for a day |
+| GET | `/readings/recent?limit=&verdict=` | newest readings (drives the live view) |
+| GET | `/stats` | live KPIs + recent anomalies |
+| GET | `/report/{date}?format=json\|csv\|pdf` | one-day report |
+| GET | `/report/range?period=daily\|weekly\|monthly\|yearly&date=&format=json\|csv\|pdf` | period report |
+| GET | `/health` | status |
 
-`push.ps1` (local helper, gitignored) checks branch and remote, scans for stray files, runs tests, asks y/n, then commits and pushes `rebuild-v2`.
+**Optional API key:** set `SENTINEL_API_KEY` before `serve`; clients then send it as the `X-API-Key` header on `/ingest`.
+
+### 3.6 Scheduled email reports
+
+Set SMTP env vars, then send on demand or on a schedule:
 
 ```powershell
-cd SentinalAQ
-.\push.ps1
+$env:SMTP_HOST="smtp.gmail.com"; $env:SMTP_USER="you@gmail.com"; $env:SMTP_PASS="app-password"; $env:REPORT_TO="team@respirer.in"
+python -m app.cli email-report --period daily                 # send once now
+python -m app.cli serve --email-period daily --email-hour 6   # serve + email a daily report at 06:00
+```
+
+Each email carries the summary in the body and the full PDF attached.
+
+### 3.7 Push to GitHub
+
+`push.ps1` (local helper, gitignored) checks branch and remote, scans for stray files, runs tests, asks y/n, then commits and pushes.
+
+```powershell
+cd SentinalAQ ; .\push.ps1
 ```
 
 ## 4. Dataset
@@ -317,11 +341,14 @@ Device-to-location mapping, multi-device real data, labelled faults, and confirm
 ## 12. Layout
 
 ```
+run.ps1        one-command end-to-end setup + launch (API + feed + dashboard)
 backend/app/   profile, priors, generator, features, rules, model, compare, evaluate,
-               detector, reasons, ingest (SQLite), api (FastAPI), stream, explore, cli
+               detector, reasons, ingest (SQLite), api (FastAPI), report_pdf,
+               mailer (email reports), live (HTTP feed), stream, explore, cli
+backend/examples  push_client.py  (how an upstream pipeline connects)
 backend/models selection.json (winner), trained models (gitignored)
-backend/tests  6 tests
-frontend/      dashboard.py
+backend/tests  7 tests
+frontend/      React + Vite + Tailwind dashboard (src/), dashboard.py (Streamlit, legacy)
 docs/          DECISIONS.md, assets/ (banner, flow)
 ```
 
