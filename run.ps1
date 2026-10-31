@@ -3,7 +3,8 @@ param(
     [int]$Port = 8000,
     [switch]$NoFeed,
     [switch]$Dev,
-    [switch]$Fresh
+    [switch]$Fresh,
+    [int]$ReplayDays = 1100
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,7 +79,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$backend'; & 
 if (-not $NoFeed) {
     Start-Sleep -Seconds 6
     Info "Starting live feed window (all cities)"
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$backend'; & '$venvPy' -m app.cli live-feed --url $api --cities all --delay 1 --loop"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$backend'; & '$venvPy' -m app.cli live-feed --url $api --cities all --delay 1 --replay-days $ReplayDays --loop"
 }
 
 Info "Starting dashboard window -> http://127.0.0.1:5173"
