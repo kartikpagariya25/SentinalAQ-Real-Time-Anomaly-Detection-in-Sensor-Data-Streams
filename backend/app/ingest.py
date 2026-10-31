@@ -89,7 +89,7 @@ class Store:
         if verdict:
             q += " WHERE verdict = ?"
             params.append(verdict.upper())
-        q += " ORDER BY ts DESC, received_at DESC LIMIT ?"
+        q += " ORDER BY rowid DESC LIMIT ?"
         params.append(int(limit))
         with self._cur() as c:
             return pd.read_sql_query(q, c, params=params, parse_dates=["timestamp"])
