@@ -2,7 +2,8 @@
 param(
     [int]$Port = 8000,
     [switch]$NoFeed,
-    [switch]$SetupOnly
+    [switch]$SetupOnly,
+    [int]$ReplayDays = 1100
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,7 +52,7 @@ Start-Process -FilePath $venvPy -ArgumentList "-m", "app.cli", "serve", "--port"
 if (-not $NoFeed) {
     Start-Sleep -Seconds 6
     Info "Starting continuous demo feed (readings pushed over HTTP)"
-    Start-Process -FilePath $venvPy -ArgumentList "-m", "app.cli", "live-feed", "--url", "http://127.0.0.1:$Port", "--cities", "all", "--delay", "1", "--loop" -WorkingDirectory $backend
+    Start-Process -FilePath $venvPy -ArgumentList "-m", "app.cli", "live-feed", "--url", "http://127.0.0.1:$Port", "--cities", "all", "--delay", "1", "--replay-days", "$ReplayDays", "--loop" -WorkingDirectory $backend
 }
 
 Info "Backend is running. API: http://127.0.0.1:$Port/docs   Dashboard: run .\dashboard.ps1"
