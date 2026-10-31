@@ -28,7 +28,7 @@ def main():
     lf = sub.add_parser("live-feed")
     lf.add_argument("--url", default="http://127.0.0.1:8000")
     lf.add_argument("--api-key", default=None)
-    lf.add_argument("--replay-days", type=int, default=2, help="days of dataset history to load first")
+    lf.add_argument("--replay-days", type=int, default=1100, help="days of dataset history to stream continuously (0 = off)")
     lf.add_argument("--cities", default="Delhi,Pune")
     lf.add_argument("--delay", type=float, default=1.0)
     lf.add_argument("--seed", type=int, default=2026)
