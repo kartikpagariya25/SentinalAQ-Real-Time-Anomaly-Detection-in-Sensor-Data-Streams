@@ -96,11 +96,11 @@ class Store:
 
     def hourly(self, hours=24):
         with self._cur() as c:
-            mx = c.execute("SELECT MAX(ts) FROM readings").fetchone()[0]
+            mx = c.execute("SELECT ts FROM readings ORDER BY rowid DESC LIMIT 1").fetchone()
             if not mx:
                 return []
-            lo = (pd.Timestamp(mx) - pd.Timedelta(hours=hours)).isoformat()
-            df = pd.read_sql_query("SELECT substr(ts,1,13) AS hour, verdict, COUNT(*) AS n FROM readings WHERE ts >= ? GROUP BY hour, verdict ORDER BY hour", c, params=[lo])
+            lo = (pd.Timestamp(mx[0]) - pd.Timedelta(hours=hours)).isoformat()
+            df = pd.read_sql_query("SELECT substr(ts,1,13) AS hour, verdict, COUNT(*) AS n FROM readings WHERE ts >= ? AND ts <= ? GROUP BY hour, verdict ORDER BY hour", c, params=[lo, pd.Timestamp(mx[0]).isoformat()])
         if df.empty:
             return []
         piv = df.pivot_table(index="hour", columns="verdict", values="n", fill_value=0)
