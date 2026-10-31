@@ -49,6 +49,8 @@ The top tree models are statistically close (rolling-CV sd about 0.03). LightGBM
 - The dashboard is a React (Vite + Tailwind + Recharts) app that polls the API: a live stream view and a reports view. It holds no logic of its own, so the API stays the single source of truth.
 - Why push over a broker/poll: Atmos pipelines already do HTTP, one endpoint is the least for Respirer to integrate, and it needs no extra infrastructure. MQTT/Kafka can be added as another front-end to the same `ingest()` later.
 
+- Live feed policy: readings are never stamped in the future. Past hours come from the dataset's own timestamps, today's hours are generated as each hour completes, and the console and hourly chart follow arrival order so the stream keeps moving.
+
 ## Known limits (honest)
 - Slow drift: 76% of drift rows are not flagged. Early drift is as large as natural device-to-device differences. Needs a device-level weekly check against a reference monitor.
 - Single-device bursts vs spikes cannot be separated from hourly data. They land in REVIEW.
