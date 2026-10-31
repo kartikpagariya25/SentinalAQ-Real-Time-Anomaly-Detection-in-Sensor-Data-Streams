@@ -17,3 +17,7 @@ backend/reports/
 *.env
 !frontend/.env.example
 push.ps1
+
+# local data exports
+sample.csv
+*_sample.csv
