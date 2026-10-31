@@ -155,7 +155,17 @@ python -m app.cli serve --email-period daily --email-hour 6   # serve + email a 
 
 Each email carries the summary in the body and the full PDF attached.
 
-### 3.7 Push to GitHub
+### 3.7 Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `.\run.ps1` says the script is not digitally signed | `Unblock-File .\*.ps1 ; Set-ExecutionPolicy -Scope Process Bypass` |
+| Dashboard shows old dates or the old chart | `.\run.ps1 -Fresh`, then hard refresh the browser (Ctrl+F5) |
+| `Port 5173 is already in use` | The dashboard is already running; open `http://127.0.0.1:5173`, or close its window and rerun |
+| "API not reachable" banner | Start the API with `.\backend.ps1` or `.\run.ps1`; the banner clears by itself |
+| Feed warns about future-dated readings | The store is from an older run; use `.\run.ps1 -Fresh` |
+
+### 3.8 Push to GitHub
 
 `push.ps1` (local helper, gitignored) checks branch and remote, scans for stray files, runs tests, asks y/n, then commits and pushes.
 
