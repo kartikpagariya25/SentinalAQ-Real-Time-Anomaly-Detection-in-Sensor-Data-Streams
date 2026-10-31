@@ -1,4 +1,3 @@
-import math
 import time
 
 import httpx
@@ -10,7 +9,7 @@ from .detector import RAW_COLS
 from .priors import CITIES as ALL_CITIES
 from .stream import simulate
 
-DRIP_CHUNKS = 12
+REPLAY_CHUNK = 8
 
 
 def _payload(tick):
@@ -32,26 +31,39 @@ def _close(c, base, ts, pushed, tag):
     print(ui.paint(f"{ts:%Y-%m-%d %H:%M}  {tag:<6} pushed {pushed:>3}  |  window  V {st['valid']:<4} I {st['invalid']:<4} R {st['review']:<4}", ui.CYAN))
 
 
-def _replay(c, base, cities, days):
-    if not DATA_FILE.exists():
-        ui.warn("dataset not found, skipping history replay (run `python -m app.cli generate`)")
-        return
-    df = pd.read_parquet(DATA_FILE, columns=RAW_COLS)
-    if set(c_.lower() for c_ in cities) != {x.lower() for x in ALL_CITIES}:
-        df = df[df["city"].isin(cities)]
-    end = df["timestamp"].max()
-    lo = end.normalize() - pd.Timedelta(days=days - 1)
-    df = df[df["timestamp"] >= lo]
-    ui.step(f"Replaying dataset history {lo:%Y-%m-%d} to {end:%Y-%m-%d %H:%M} (past timestamps from the dataset)")
-    for ts, tick in df.groupby("timestamp", sort=True):
-        n = _push(c, base, tick, ts, "data")
-        c.post(f"{base}/close-hour/{ts.isoformat()}")
-    ui.ok("history loaded")
-
-
 def _day_ticks(day, cities, seed):
     sim = simulate(day, 2, cities, seed + day.toordinal())
     return {ts: tick for ts, tick in sim.groupby("timestamp", sort=True) if ts >= day}
+
+
+class Today:
+    def __init__(self, cities, seed):
+        self.cities, self.seed = cities, seed
+        self.day, self.ticks, self.sent = None, {}, set()
+
+    def flush(self, c, base):
+        cur = pd.Timestamp.now().floor("h")
+        if self.day != cur.normalize():
+            self.day = cur.normalize()
+            self.ticks = _day_ticks(self.day, self.cities, self.seed)
+            self.sent = set()
+            ui.step(f"live day: {self.day:%A %d %b %Y}")
+        for ts in sorted(t for t in self.ticks if t <= cur and t not in self.sent):
+            n = _push(c, base, self.ticks[ts], ts, "live")
+            _close(c, base, ts, n, "live")
+            self.sent.add(ts)
+        return all(t in self.sent for t in self.ticks if t <= cur)
+
+
+def _history(cities, days):
+    if not DATA_FILE.exists():
+        ui.warn("dataset not found, skipping history stream (run `python -m app.cli generate`)")
+        return None
+    df = pd.read_parquet(DATA_FILE, columns=RAW_COLS)
+    if {x.lower() for x in cities} != {x.lower() for x in ALL_CITIES}:
+        df = df[df["city"].isin(cities)]
+    lo = df["timestamp"].max().normalize() - pd.Timedelta(days=days - 1)
+    return df[df["timestamp"] >= lo]
 
 
 def run_live_feed(a):
@@ -61,7 +73,8 @@ def run_live_feed(a):
     base = a.url.rstrip("/")
     headers = {"X-API-Key": a.api_key} if a.api_key else {}
     ui.title(f"Live HTTP feed -> {base}/ingest")
-    ui.step("History comes from the dataset; today's readings are generated live, hour by hour. Nothing is ever stamped in the future. Ctrl+C to stop.")
+    ui.step("Today's readings arrive as each hour completes; the dataset's past hours stream continuously in between. Nothing is stamped in the future. Ctrl+C to stop.")
+    today = Today(cities, a.seed)
     try:
         with httpx.Client(timeout=30, headers=headers) as c:
             h = c.get(f"{base}/health")
@@ -70,33 +83,20 @@ def run_live_feed(a):
             ui.ok(f"connected, model: {hj['model']}")
             if hj.get("last") and pd.Timestamp(hj["last"]) > pd.Timestamp.now():
                 ui.warn(f"store holds future-dated readings (up to {hj['last']}) from an old run - restart with .\\run.ps1 -Fresh")
-            if not hj.get("last") and a.replay_days > 0:
-                _replay(c, base, cities, a.replay_days)
-            day, ticks, sent = None, {}, set()
-            while True:
-                now = pd.Timestamp.now()
-                cur = now.floor("h")
-                if day != cur.normalize():
-                    day = cur.normalize()
-                    ticks = _day_ticks(day, cities, a.seed)
-                    sent = set()
-                    ui.step(f"live day: {day:%A %d %b %Y}")
-                for ts in sorted(t for t in ticks if t <= cur and t not in sent):
-                    tick = ticks[ts]
-                    if ts < cur:
-                        n = _push(c, base, tick, ts, "catch")
-                        _close(c, base, ts, n, "catch")
-                        time.sleep(a.delay * 0.3)
-                    else:
-                        step = max(1, math.ceil(len(tick) / DRIP_CHUNKS))
-                        n = 0
-                        for i in range(0, len(tick), step):
-                            n += _push(c, base, tick.iloc[i:i + step], ts, "live")
-                            time.sleep(a.delay)
-                        _close(c, base, ts, n, "live")
-                    sent.add(ts)
-                if not a.loop and all(t in sent for t in ticks if t <= cur):
-                    break
+            today.flush(c, base)
+            hist = _history(cities, a.replay_days) if a.replay_days > 0 else None
+            if hist is not None and not hist.empty:
+                ui.step(f"Streaming dataset history {hist['timestamp'].min():%Y-%m-%d} to {hist['timestamp'].max():%Y-%m-%d %H:%M}")
+                for ts, tick in hist.groupby("timestamp", sort=True):
+                    today.flush(c, base)
+                    n = 0
+                    for i in range(0, len(tick), REPLAY_CHUNK):
+                        n += _push(c, base, tick.iloc[i:i + REPLAY_CHUNK], ts, "data")
+                        time.sleep(a.delay)
+                    _close(c, base, ts, n, "data")
+                ui.ok("dataset history finished")
+            while a.loop:
+                today.flush(c, base)
                 time.sleep(5)
     except KeyboardInterrupt:
         print(ui.paint("\nstopped", ui.YELLOW))
