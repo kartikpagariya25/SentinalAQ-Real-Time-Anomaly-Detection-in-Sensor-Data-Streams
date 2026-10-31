@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { AlertTriangle, Database } from "lucide-react";
 import { api } from "../api";
 import { Card, Kpi, Pill, VERDICT, num } from "./Shared";
@@ -53,7 +53,7 @@ export default function LiveView({ health }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card title="Verdicts per hour (last 24h)" className="lg:col-span-2" right={<LiveTag last={stats?.last} />}>
+        <Card title="Readings per hour by verdict (last 24 hours of the stream)" className="lg:col-span-2" right={<LiveTag last={stats?.last} />}>
           <div className="mb-2 grid grid-cols-4 gap-2 text-center text-xs">
             <Total label="Valid" value={sum.VALID} color={VERDICT.VALID.hex} />
             <Total label="Review" value={sum.REVIEW} color={VERDICT.REVIEW.hex} />
@@ -63,26 +63,18 @@ export default function LiveView({ health }) {
           <div className="h-64">
             {data.length ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data} margin={{ left: 4, right: 10, top: 6, bottom: 18 }}>
-                  <defs>
-                    {Object.entries(VERDICT).map(([k, v]) => (
-                      <linearGradient key={k} id={`g${k}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={v.hex} stopOpacity={0.5} />
-                        <stop offset="100%" stopColor={v.hex} stopOpacity={0.04} />
-                      </linearGradient>
-                    ))}
-                  </defs>
+                <BarChart data={data} margin={{ left: 4, right: 10, top: 6, bottom: 22 }} barCategoryGap="12%">
                   <CartesianGrid stroke="#eef0f3" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="hour" tick={{ fill: "#94a3b8", fontSize: 10 }} stroke="#e5e7eb" interval="preserveStartEnd" minTickGap={28}
-                    label={{ value: "hour (date · time)", position: "insideBottom", offset: -10, fill: "#94a3b8", fontSize: 11 }} />
-                  <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} stroke="#e5e7eb" allowDecimals={false}
-                    label={{ value: "readings / hour", angle: -90, position: "insideLeft", fill: "#94a3b8", fontSize: 11, style: { textAnchor: "middle" } }} />
-                  <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 12, color: "#0f172a", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }} />
-                  <Legend verticalAlign="top" height={24} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" name="Valid" dataKey="VALID" stackId="1" stroke={VERDICT.VALID.hex} fill="url(#gVALID)" />
-                  <Area type="monotone" name="Review" dataKey="REVIEW" stackId="1" stroke={VERDICT.REVIEW.hex} fill="url(#gREVIEW)" />
-                  <Area type="monotone" name="Invalid" dataKey="INVALID" stackId="1" stroke={VERDICT.INVALID.hex} fill="url(#gINVALID)" />
-                </AreaChart>
+                  <XAxis dataKey="hour" tick={{ fill: "#64748b", fontSize: 10 }} stroke="#e5e7eb" interval="preserveStartEnd" minTickGap={24}
+                    label={{ value: "hour of arrival (MM-DD HH)", position: "insideBottom", offset: -12, fill: "#64748b", fontSize: 11 }} />
+                  <YAxis tick={{ fill: "#64748b", fontSize: 11 }} stroke="#e5e7eb" allowDecimals={false}
+                    label={{ value: "number of readings", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 11, style: { textAnchor: "middle" } }} />
+                  <Tooltip cursor={{ fill: "#f1f5f9" }} />
+                  <Legend verticalAlign="top" height={24} iconType="square" wrapperStyle={{ fontSize: 12 }} />
+                  <Bar name="Valid" dataKey="VALID" stackId="a" fill={VERDICT.VALID.hex} />
+                  <Bar name="Review" dataKey="REVIEW" stackId="a" fill={VERDICT.REVIEW.hex} />
+                  <Bar name="Invalid" dataKey="INVALID" stackId="a" fill={VERDICT.INVALID.hex} />
+                </BarChart>
               </ResponsiveContainer>
             ) : <div className="flex h-full items-center justify-center text-sm text-muted">waiting for data…</div>}
           </div>
