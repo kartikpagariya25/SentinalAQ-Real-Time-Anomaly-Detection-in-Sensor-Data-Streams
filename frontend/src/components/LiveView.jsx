@@ -36,6 +36,8 @@ export default function LiveView({ health }) {
   const w = stats?.latest_window || { valid: 0, invalid: 0, review: 0 };
   const anomalies = stats?.recent_anomalies || [];
   const sum = data.reduce((t, r) => ({ VALID: t.VALID + r.VALID, REVIEW: t.REVIEW + r.REVIEW, INVALID: t.INVALID + r.INVALID }), { VALID: 0, REVIEW: 0, INVALID: 0 });
+  const tot = (r) => r.VALID + r.REVIEW + r.INVALID;
+  const partial = data.length > 1 && tot(data[data.length - 1]) < Math.max(...data.map(tot));
 
   return (
     <div className="space-y-4">
@@ -69,7 +71,7 @@ export default function LiveView({ health }) {
                     label={{ value: "hour of arrival (MM-DD HH)", position: "insideBottom", offset: -12, fill: "#64748b", fontSize: 11 }} />
                   <YAxis tick={{ fill: "#64748b", fontSize: 11 }} stroke="#e5e7eb" allowDecimals={false}
                     label={{ value: "number of readings", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 11, style: { textAnchor: "middle" } }} />
-                  <Tooltip cursor={{ fill: "#f1f5f9" }} />
+                  <Tooltip content={<HourTip />} cursor={{ fill: "#f1f5f9" }} />
                   <Legend verticalAlign="top" height={24} iconType="square" wrapperStyle={{ fontSize: 12 }} />
                   <Bar name="Valid" dataKey="VALID" stackId="a" fill={VERDICT.VALID.hex} />
                   <Bar name="Review" dataKey="REVIEW" stackId="a" fill={VERDICT.REVIEW.hex} />
@@ -78,6 +80,7 @@ export default function LiveView({ health }) {
               </ResponsiveContainer>
             ) : <div className="flex h-full items-center justify-center text-sm text-muted">waiting for data…</div>}
           </div>
+          {partial && <p className="mt-1 text-xs text-muted">The newest bar ({data[data.length - 1].hour}) is shorter because that hour's readings are still arriving.</p>}
         </Card>
 
         <Card title="Anomaly feed" right={<span className="flex items-center gap-1 text-xs text-brand"><AlertTriangle size={13} /> {anomalies.length}</span>}>
@@ -106,6 +109,21 @@ function Total({ label, value, color }) {
     <div className="rounded-lg border border-line bg-canvas px-2 py-1.5">
       <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
       <div className="text-base font-bold tabular-nums" style={{ color }}>{num(value)}</div>
+    </div>
+  );
+}
+
+function HourTip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const total = row.VALID + row.REVIEW + row.INVALID;
+  return (
+    <div className="rounded-xl border border-line bg-white px-3 py-2 text-xs shadow-card">
+      <div className="mb-1 font-semibold text-ink">{label}h</div>
+      <div style={{ color: VERDICT.VALID.hex }}>Valid: {row.VALID}</div>
+      <div style={{ color: VERDICT.REVIEW.hex }}>Review: {row.REVIEW}</div>
+      <div style={{ color: VERDICT.INVALID.hex }}>Invalid: {row.INVALID}</div>
+      <div className="mt-1 border-t border-line pt-1 text-ink">Total: {total}</div>
     </div>
   );
 }
