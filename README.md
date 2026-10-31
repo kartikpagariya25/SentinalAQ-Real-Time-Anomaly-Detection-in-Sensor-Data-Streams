@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/FastAPI-ingestion%20API-009688?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-live%20dashboard-61DAFB?logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/SQLite-store-003B57?logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/tests-7%20passed-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/tests-8%20passed-brightgreen" alt="tests">
   <img src="https://img.shields.io/badge/data-synthetic%20%2B%201%20real%20file-lightgrey" alt="data">
 </p>
 
@@ -58,7 +58,7 @@ Set-ExecutionPolicy -Scope Process RemoteSigned
 - Dashboard: `http://127.0.0.1:5173`
 - API + Swagger: `http://127.0.0.1:8000/docs`
 
-Flags: `.\run.ps1 -SetupOnly` (install only), `.\run.ps1 -NoFeed` (no demo feed), `.\run.ps1 -Port 9000`.
+Flags: `-NoFeed` (no demo feed), `-Port 9000`, `-Dev` (Vite dev server while editing the dashboard), `-Fresh` (stop stray processes and clear the live store), `-ReplayDays 30` (how much dataset history the feed streams). `.\backend.ps1 -SetupOnly` installs and trains without starting anything.
 
 Put `device_with_anomaly.xlsx` in `backend\data\raw\` before the first run. Data files are gitignored, so they are never in the repo.
 
@@ -75,7 +75,7 @@ python -m app.cli profile          # learn patterns from the real file
 python -m app.cli generate         # synthetic network: 3 years, 67 devices, 10 cities (~1.76 M rows)
 python -m app.cli train            # train winner, calibrate, set policy (~1 min)
 python -m app.cli evaluate         # full test report -> reports\evaluation
-python -m pytest -q                # 7 tests
+python -m pytest -q                # 8 tests
 ```
 
 `compare` (the 9-model bake-off, ~45 min) is optional — the winner is already in `models\selection.json`, so `train` works without it. Use `compare --resume` to reuse saved stage 1-2 results.
@@ -98,8 +98,11 @@ cd backend ; python -m app.cli live-feed --loop    # terminal 2: push demo readi
 cd frontend ; npm install ; npm run dev              # terminal 3: dashboard
 ```
 
-- **Live stream** tab — KPIs, verdicts over time, an anomaly feed and the incoming-reading table, all refreshing every 3 s.
-- **Reports** tab — pick daily / weekly / monthly / yearly + a date, see the summary and charts, download **CSV** or **PDF**.
+- **Live stream** tab — KPIs, a stacked hourly bar chart (valid / review / invalid with exact counts), an anomaly feed and a streaming console of readings scored on arrival, refreshing every 2 s.
+- **Reports** tab — pick daily / weekly / monthly / yearly + a date, see the summary, charts and anomalies by device, download **CSV** or **PDF**.
+- **Dataset**, **Team**, **Respirer** and **About** tabs describe the data, the people and the project.
+
+The demo feed never stamps a reading in the future: it streams past hours from the dataset's own timestamps and adds today's hours as each hour completes.
 
 The API URL is configurable: copy `frontend\.env.example` to `frontend\.env` and set `VITE_API_URL`.
 
@@ -347,7 +350,7 @@ backend/app/   profile, priors, generator, features, rules, model, compare, eval
                mailer (email reports), live (HTTP feed), stream, explore, cli
 backend/examples  push_client.py  (how an upstream pipeline connects)
 backend/models selection.json (winner), trained models (gitignored)
-backend/tests  7 tests
+backend/tests  8 tests
 frontend/      React + Vite + Tailwind dashboard (src/), dashboard.py (Streamlit, legacy)
 docs/          DECISIONS.md, assets/ (banner, flow)
 ```
