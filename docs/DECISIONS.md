@@ -42,6 +42,13 @@ The top tree models are statistically close (rolling-CV sd about 0.03). LightGBM
 - Real Atmos file: 12 of 12 invalid rows caught, 1 flagged for REVIEW (the 566 ug/m3 reading), 0 missed.
 - Learning curve: PR-AUC 0.84 (3 months) -> 0.92 (12 months) -> 0.925 (18 months). More data of the same kind will help little.
 
+## Serving architecture (how it runs in production)
+- Ingestion is push: the upstream pipeline sends batches to `POST /ingest` (FastAPI) and gets a verdict per reading back. Same scoring path as batch (dedupe, late data, 192 h history, features, detector), so there is no train/serve gap. Optional `X-API-Key` auth.
+- Storage is SQLite; each reading is kept with its verdict, confidence, reason and source. Swap for Postgres when device count grows.
+- Reports are computed on the stored verdicts for any daily/weekly/monthly/yearly window, served as JSON, CSV or PDF (`/report/range`), and can be emailed on a schedule.
+- The dashboard is a React (Vite + Tailwind + Recharts) app that polls the API: a live stream view and a reports view. It holds no logic of its own, so the API stays the single source of truth.
+- Why push over a broker/poll: Atmos pipelines already do HTTP, one endpoint is the least for Respirer to integrate, and it needs no extra infrastructure. MQTT/Kafka can be added as another front-end to the same `ingest()` later.
+
 ## Known limits (honest)
 - Slow drift: 76% of drift rows are not flagged. Early drift is as large as natural device-to-device differences. Needs a device-level weekly check against a reference monitor.
 - Single-device bursts vs spikes cannot be separated from hourly data. They land in REVIEW.
