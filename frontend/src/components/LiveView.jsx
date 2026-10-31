@@ -35,6 +35,7 @@ export default function LiveView({ health }) {
   const data = stats?.by_hour || [];
   const w = stats?.latest_window || { valid: 0, invalid: 0, review: 0 };
   const anomalies = stats?.recent_anomalies || [];
+  const sum = data.reduce((t, r) => ({ VALID: t.VALID + r.VALID, REVIEW: t.REVIEW + r.REVIEW, INVALID: t.INVALID + r.INVALID }), { VALID: 0, REVIEW: 0, INVALID: 0 });
 
   return (
     <div className="space-y-4">
@@ -53,6 +54,12 @@ export default function LiveView({ health }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card title="Verdicts per hour (last 24h)" className="lg:col-span-2" right={<LiveTag last={stats?.last} />}>
+          <div className="mb-2 grid grid-cols-4 gap-2 text-center text-xs">
+            <Total label="Valid" value={sum.VALID} color={VERDICT.VALID.hex} />
+            <Total label="Review" value={sum.REVIEW} color={VERDICT.REVIEW.hex} />
+            <Total label="Invalid" value={sum.INVALID} color={VERDICT.INVALID.hex} />
+            <Total label="Total (24h)" value={sum.VALID + sum.REVIEW + sum.INVALID} color="#0f172a" />
+          </div>
           <div className="h-64">
             {data.length ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -98,6 +105,15 @@ export default function LiveView({ health }) {
       </div>
 
       <LogConsole />
+    </div>
+  );
+}
+
+function Total({ label, value, color }) {
+  return (
+    <div className="rounded-lg border border-line bg-canvas px-2 py-1.5">
+      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
+      <div className="text-base font-bold tabular-nums" style={{ color }}>{num(value)}</div>
     </div>
   );
 }
