@@ -86,6 +86,16 @@ python -m pytest -q                # 8 tests
 python -m app.cli peek --city Delhi --faults-only --rows 30
 python -m app.cli peek --device DEL-01 --start 2025-11-01 --end 2025-11-04 --rows 72
 python -m app.cli stream --days 2 --cities Delhi,Pune --delay 0.3 --only-flagged
+python -m app.cli peek --city Pune --start 2026-09-01 --end 2026-09-30 --export ..\pune_sep.csv
+```
+
+The full dataset is `backend\data\synthetic\sensor_data.parquet`. To read it in a table with proper dates, export a slice with `--export` and open the CSV in Excel or VS Code (Rainbow CSV); a parquet viewer extension also works, but it shows timestamps as epoch milliseconds.
+
+Model metrics and a short guide to every model:
+
+```powershell
+.\models.ps1          # table with full names, coverage, precision, speed
+.\models.ps1 -Info    # adds a plain-language description of each model
 ```
 
 ### 3.4 Live dashboard
