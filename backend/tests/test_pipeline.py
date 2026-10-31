@@ -116,3 +116,16 @@ def test_range_reports_and_pdf(bundle, small):
     weekly = ing.summary_range(*period_window("weekly", anchor), "weekly")
     assert build_report_pdf(weekly)[:4] == b"%PDF"
     assert len(ing.store.recent(5)) <= 5
+
+
+def test_live_views_follow_arrival_order(bundle, small):
+    raw = small[small["timestamp"] >= "2025-04-01"][["timestamp", "device_id", "city", "pm25", "temp", "rh"]]
+    ticks = sorted(raw["timestamp"].unique())
+    ing = Ingestor(bundle, Store(":memory:"))
+    ing.ingest(raw[raw["timestamp"].isin(ticks[48:60])])
+    ing.ingest(raw[raw["timestamp"].isin(ticks[:12])])
+    newest = ing.store.recent(1).iloc[0]["timestamp"]
+    assert newest in set(pd.to_datetime(ticks[:12]))
+    hours = ing.store.hourly(24)
+    assert hours and all(h["VALID"] + h["REVIEW"] + h["INVALID"] > 0 for h in hours)
+    assert hours[-1]["hour"].startswith(pd.Timestamp(ticks[11]).strftime("%m-%d %H"))
