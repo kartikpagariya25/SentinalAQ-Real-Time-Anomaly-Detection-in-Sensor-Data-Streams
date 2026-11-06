@@ -1,3 +1,5 @@
+"""Causal feature engineering (40 features). The same function builds training, batch and streaming features,
+which is what keeps train and serve identical (tested in tests/test_pipeline.py)."""
 import warnings
 
 import numpy as np

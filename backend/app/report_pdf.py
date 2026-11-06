@@ -1,3 +1,4 @@
+"""Builds the PDF data-quality report with reportlab."""
 from io import BytesIO
 
 from reportlab.lib import colors

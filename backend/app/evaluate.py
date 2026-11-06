@@ -1,3 +1,5 @@
+"""Step 5: the held-out test report (baselines, per-fault results, calibration, unseen cities, stress tests,
+real-file check). Writes CSV/JSON to reports/evaluation."""
 import json
 
 import numpy as np

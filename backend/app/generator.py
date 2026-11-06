@@ -1,3 +1,4 @@
+"""Synthetic network generator: city climate, real pollution events, and injected sensor faults with ground-truth labels."""
 import numpy as np
 import pandas as pd
 from scipy.signal import lfilter

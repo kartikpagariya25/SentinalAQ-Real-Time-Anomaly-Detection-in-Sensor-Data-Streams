@@ -1,3 +1,4 @@
+"""`peek`: browse and export the synthetic dataset from the terminal."""
 import pandas as pd
 
 from . import ui

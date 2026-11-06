@@ -1,3 +1,4 @@
+"""Scheduled / on-demand email reports (summary in the body, PDF attached). Configured with SMTP_* env vars."""
 import os
 import smtplib
 import ssl

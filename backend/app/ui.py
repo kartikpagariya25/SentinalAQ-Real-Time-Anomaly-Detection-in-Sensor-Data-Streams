@@ -1,3 +1,4 @@
+"""Small console helpers (colour, tables) used by the CLI."""
 import colorama
 
 colorama.just_fix_windows_console()

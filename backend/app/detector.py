@@ -1,3 +1,5 @@
+"""Scores readings: `annotate` turns features into verdict/class/confidence/reason, `Detector` does it tick by tick
+with a rolling 192 h buffer, `run_batch` does it for a whole frame."""
 import numpy as np
 import pandas as pd
 

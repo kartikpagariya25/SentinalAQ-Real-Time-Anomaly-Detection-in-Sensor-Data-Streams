@@ -1,3 +1,4 @@
+"""Physics rules that always win over the model: missing data, impossible temp/RH, sentinel and saturated PM."""
 import numpy as np
 import pandas as pd
 

@@ -1,3 +1,5 @@
+"""Model registry, training weights, probability calibration, the 3-way decision policy, prediction and
+per-reading drivers (top contributing features)."""
 import time
 
 import joblib

@@ -1,3 +1,5 @@
+"""Model bake-off: stage 1 (all families), stage 2 (rolling-origin CV), stage 3 (random-search tuning),
+then the selection rule that writes models/selection.json."""
 import json
 import time
 

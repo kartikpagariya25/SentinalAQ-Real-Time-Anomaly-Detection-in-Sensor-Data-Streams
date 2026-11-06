@@ -1,3 +1,4 @@
+"""Simulated streaming: `stream` (console replay with day-wise CSV reports) and `ingest-sim` (same path as the API)."""
 import time
 from pathlib import Path
 

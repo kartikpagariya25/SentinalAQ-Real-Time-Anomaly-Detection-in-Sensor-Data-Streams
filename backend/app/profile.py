@@ -1,3 +1,4 @@
+"""Step 1: learns patterns (PM level, autocorrelation, diurnal curves, fault signatures) from the real Atmos file."""
 import json
 
 import numpy as np

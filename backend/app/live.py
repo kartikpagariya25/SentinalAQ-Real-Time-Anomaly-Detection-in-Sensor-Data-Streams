@@ -1,3 +1,4 @@
+"""`live-feed`: pushes demo readings to a running API over HTTP (dataset history plus today's hours as they complete)."""
 import time
 
 import httpx

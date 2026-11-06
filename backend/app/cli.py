@@ -1,3 +1,4 @@
+"""Command-line entry point: `python -m app.cli <command>`. See docs/DEVELOPMENT.md for every command."""
 import warnings
 
 warnings.filterwarnings("ignore")

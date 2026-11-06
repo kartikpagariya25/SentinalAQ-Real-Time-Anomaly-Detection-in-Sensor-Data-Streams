@@ -1,3 +1,4 @@
+"""FastAPI service: push ingestion (/ingest), live views, and JSON/CSV/PDF reports. See docs/API.md."""
 import os
 from typing import List, Literal, Optional
 

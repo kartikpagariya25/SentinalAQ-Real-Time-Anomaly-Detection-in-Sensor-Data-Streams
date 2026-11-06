@@ -1,3 +1,4 @@
+"""Paths, date splits, class lists and detection constants shared by the whole backend."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

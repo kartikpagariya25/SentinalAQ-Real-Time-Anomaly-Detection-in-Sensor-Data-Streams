@@ -1,3 +1,4 @@
+"""Assumed world model: climate presets, the 10 cities, festival dates, and season helpers."""
 import pandas as pd
 
 PRESETS = {

@@ -1,3 +1,4 @@
+"""The numbered CLI steps: profile, generate, compare, train, models. Also the time-based train/val/test split."""
 import json
 import time
 

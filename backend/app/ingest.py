@@ -1,3 +1,4 @@
+"""SQLite store, the Ingestor (dedupe, late data, history, scoring, dropout closing) and period summaries."""
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
