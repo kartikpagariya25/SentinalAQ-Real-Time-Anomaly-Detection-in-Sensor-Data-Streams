@@ -145,13 +145,11 @@ def run_ingest_sim(a):
     sim = simulate(a.start, a.days, cities, 2026)
     ui.title(f"Ingestion pipeline  |  {len(cities)} cities  |  store: {store.path}")
     ui.step("Feeding hourly batches through the same path the API uses (dedupe, late data, scoring, storage)")
-    first, ok, dup = pd.Timestamp(a.start), 0, 0
+    first = pd.Timestamp(a.start)
     for ts, tick in sim.groupby("timestamp", sort=True):
         raw = tick[RAW_COLS]
-        r = ing.ingest(raw[raw["pm25"].notna() | raw["temp"].notna() | raw["rh"].notna()])
+        ing.ingest(raw[raw["pm25"].notna() | raw["temp"].notna() | raw["rh"].notna()])
         ing.close_hour(ts)
-        ok += r["scored"]
-        dup += r["duplicates"]
     ing.ingest(sim[sim["timestamp"] == sim["timestamp"].max()][RAW_COLS])
     ui.ok(f"{store.count():,} readings stored, duplicates ignored on resend")
     for d in range(a.days):
