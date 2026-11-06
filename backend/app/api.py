@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Header, Query
@@ -78,7 +78,7 @@ def close_hour(ts: str, x_api_key: Optional[str] = Header(None)):
 
 
 @app.get("/readings")
-def readings(date: str, device: Optional[str] = None, verdict: Optional[str] = None, limit: int = 200):
+def readings(date: str, device: Optional[str] = None, verdict: Optional[str] = None, limit: int = Query(200, ge=1, le=5000)):
     d = get_ingestor().store.day(parse_ts(date, "date"))
     if device:
         d = d[d["device_id"] == device]
@@ -90,7 +90,7 @@ def readings(date: str, device: Optional[str] = None, verdict: Optional[str] = N
 
 
 @app.get("/readings/recent")
-def recent(limit: int = 50, verdict: Optional[str] = None):
+def recent(limit: int = Query(50, ge=1, le=5000), verdict: Optional[str] = None):
     d = get_ingestor().store.recent(limit, verdict)
     d["timestamp"] = d["timestamp"].astype(str)
     return _records(d)
@@ -120,11 +120,11 @@ def _records(d):
 
 
 @app.get("/report/range")
-def report_range(period: str = Query("daily"), date: Optional[str] = None, format: str = "json"):
+def report_range(period: str = Query("daily"), date: Optional[str] = None, format: Literal["json", "csv", "pdf"] = "json"):
     ing = get_ingestor()
     if period not in PERIODS:
         raise HTTPException(400, f"period must be one of {PERIODS}")
-    anchor = date or ing.store.span()[1] or pd.Timestamp.utcnow()
+    anchor = parse_ts(date, "date") if date else (ing.store.span()[1] or pd.Timestamp.now())
     start, end = period_window(period, anchor)
     if format == "csv":
         csv = ing.store.range(start, end).to_csv(index=False)
@@ -137,10 +137,12 @@ def report_range(period: str = Query("daily"), date: Optional[str] = None, forma
 
 
 @app.get("/report/{date}")
-def report(date: str, format: str = "json"):
+def report(date: str, format: Literal["json", "csv", "pdf"] = "json"):
     ing = get_ingestor()
+    parse_ts(date, "date")
     if format == "csv":
-        return PlainTextResponse(ing.store.day(date).to_csv(index=False), media_type="text/csv")
+        return PlainTextResponse(ing.store.day(date).to_csv(index=False), media_type="text/csv",
+                                 headers={"Content-Disposition": f"attachment; filename=sentinelaq_{date}.csv"})
     if format == "pdf":
         return Response(build_report_pdf(ing.summary(date)), media_type="application/pdf",
                         headers={"Content-Disposition": f"attachment; filename=sentinelaq_{date}.pdf"})
