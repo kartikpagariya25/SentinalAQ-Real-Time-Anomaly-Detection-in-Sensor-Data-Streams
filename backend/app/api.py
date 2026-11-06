@@ -24,6 +24,17 @@ def get_ingestor():
     return _state["ing"]
 
 
+def parse_ts(value, name="timestamp"):
+    """Parse a user-supplied date/time, turning bad input into a 400 instead of a 500."""
+    try:
+        ts = pd.Timestamp(value)
+    except (ValueError, TypeError):
+        raise HTTPException(400, f"{name} is not a valid date/time: {value!r}")
+    if pd.isna(ts):
+        raise HTTPException(400, f"{name} is not a valid date/time: {value!r}")
+    return ts
+
+
 def check_key(x_api_key):
     if API_KEY and x_api_key != API_KEY:
         raise HTTPException(401, "invalid or missing X-API-Key")
@@ -52,18 +63,23 @@ def ingest(readings: List[Reading], x_api_key: Optional[str] = Header(None)):
     if not readings:
         raise HTTPException(400, "empty batch")
     df = pd.DataFrame([r.model_dump() for r in readings])
+    try:
+        # offsets (e.g. "...Z") are converted to UTC, naive times are kept as given
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_localize(None)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, f"unparseable timestamp in batch: {e}")
     return get_ingestor().ingest(df)
 
 
 @app.post("/close-hour/{ts}")
 def close_hour(ts: str, x_api_key: Optional[str] = Header(None)):
     check_key(x_api_key)
-    return {"dropouts_recorded": get_ingestor().close_hour(ts)}
+    return {"dropouts_recorded": get_ingestor().close_hour(parse_ts(ts, "ts"))}
 
 
 @app.get("/readings")
 def readings(date: str, device: Optional[str] = None, verdict: Optional[str] = None, limit: int = 200):
-    d = get_ingestor().store.day(date)
+    d = get_ingestor().store.day(parse_ts(date, "date"))
     if device:
         d = d[d["device_id"] == device]
     if verdict:
