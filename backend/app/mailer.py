@@ -12,6 +12,9 @@ from .model import load_bundle
 from .report_pdf import build_report_pdf
 
 
+SMTP_TIMEOUT = 30  # seconds; a dead server must not hang the scheduler thread
+
+
 def _cfg():
     return {
         "host": os.environ.get("SMTP_HOST"),
@@ -61,8 +64,13 @@ def send_report(period="daily", anchor=None, to=None, ing=None):
                        filename=f"sentinelaq_{period}_{pd.Timestamp(anchor).date()}.pdf")
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP(cfg["host"], cfg["port"]) as srv:
-        srv.starttls(context=ctx)
+    if cfg["port"] == 465:  # implicit TLS
+        srv_cm = smtplib.SMTP_SSL(cfg["host"], cfg["port"], context=ctx, timeout=SMTP_TIMEOUT)
+    else:
+        srv_cm = smtplib.SMTP(cfg["host"], cfg["port"], timeout=SMTP_TIMEOUT)
+    with srv_cm as srv:
+        if cfg["port"] != 465:
+            srv.starttls(context=ctx)
         if cfg["user"]:
             srv.login(cfg["user"], cfg["password"])
         srv.send_message(msg)
