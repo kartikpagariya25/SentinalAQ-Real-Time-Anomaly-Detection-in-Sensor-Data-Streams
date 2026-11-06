@@ -19,14 +19,14 @@ def _payload(tick):
     return [{k: (None if isinstance(v, float) and v != v else v) for k, v in row.items()} for row in rows]
 
 
-def _push(c, base, tick, ts, tag):
+def _push(c, base, tick):
     rows = _payload(tick)
     c.post(f"{base}/ingest", json=rows).raise_for_status()
     return len(rows)
 
 
 def _close(c, base, ts, pushed, tag):
-    c.post(f"{base}/close-hour/{ts.isoformat()}")
+    c.post(f"{base}/close-hour/{ts.isoformat()}").raise_for_status()
     st = c.get(f"{base}/stats").json()["latest_window"]
     print(ui.paint(f"{ts:%Y-%m-%d %H:%M}  {tag:<6} pushed {pushed:>3}  |  window  V {st['valid']:<4} I {st['invalid']:<4} R {st['review']:<4}", ui.CYAN))
 
@@ -49,7 +49,7 @@ class Today:
             self.sent = set()
             ui.step(f"live day: {self.day:%A %d %b %Y}")
         for ts in sorted(t for t in self.ticks if t <= cur and t not in self.sent):
-            n = _push(c, base, self.ticks[ts], ts, "live")
+            n = _push(c, base, self.ticks[ts])
             _close(c, base, ts, n, "live")
             self.sent.add(ts)
         return all(t in self.sent for t in self.ticks if t <= cur)
@@ -91,7 +91,7 @@ def run_live_feed(a):
                     today.flush(c, base)
                     n = 0
                     for i in range(0, len(tick), REPLAY_CHUNK):
-                        n += _push(c, base, tick.iloc[i:i + REPLAY_CHUNK], ts, "data")
+                        n += _push(c, base, tick.iloc[i:i + REPLAY_CHUNK])
                         time.sleep(a.delay)
                     _close(c, base, ts, n, "data")
                 ui.ok("dataset history finished")
