@@ -1,0 +1,8 @@
+# Keep line endings consistent between Windows and other checkouts.
+* text=auto
+*.ps1 text eol=crlf
+*.sh text eol=lf
+*.png binary
+*.xlsx binary
+*.parquet binary
+*.joblib binary
