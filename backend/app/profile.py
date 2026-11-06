@@ -39,7 +39,7 @@ def build_profile(path=RAW_FILE):
     good = d[(d.is_valid == 1) & (d.pm25 < 200)].copy()
     bad = d[d.is_valid == 0]
 
-    lpm = np.log(good.pm25.to_numpy())
+    lpm = np.log(good.pm25.clip(lower=1e-3).to_numpy())
     pm_prof = _smooth(_hourly(lpm, good.hour.to_numpy(), "median"))
     d["lpm_res"] = np.where((d.is_valid == 1) & (d.pm25 < 200), np.log(d.pm25.clip(lower=1e-3)) - pm_prof[d.hour], np.nan)
     pm_sd = float(1.4826 * np.nanmedian(np.abs(d.lpm_res - np.nanmedian(d.lpm_res))))
@@ -71,7 +71,6 @@ def build_profile(path=RAW_FILE):
     rh_low = rh_bad[rh_bad.rh < 15].rh
     rh_high_share = float((rh_bad.rh >= 99.9).mean()) if len(rh_bad) else 0.5
 
-    ev = good.copy()
     allv = d[(d.is_valid == 1)]
     event_ratio = float((allv.pm25 / np.exp(pm_prof[allv.hour])).max())
 
