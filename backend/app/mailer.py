@@ -48,7 +48,7 @@ def send_report(period="daily", anchor=None, to=None, ing=None):
     if not (cfg["host"] and cfg["sender"] and to):
         raise RuntimeError("email not configured: set SMTP_HOST, REPORT_FROM/SMTP_USER and REPORT_TO (or pass --to)")
     ing = ing or Ingestor(load_bundle(), Store())
-    anchor = anchor or ing.store.span()[1] or pd.Timestamp.utcnow()
+    anchor = anchor or ing.store.span()[1] or pd.Timestamp.now()
     start, end = period_window(period, anchor)
     s = ing.summary_range(start, end, period)
 
