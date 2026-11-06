@@ -3,6 +3,8 @@ pandas
 pyarrow
 openpyxl
 scikit-learn
+scipy
+joblib
 lightgbm
 xgboost
 colorama
@@ -11,5 +13,6 @@ plotly
 fastapi
 uvicorn
 httpx
+pydantic>=2
 pytest
 reportlab
