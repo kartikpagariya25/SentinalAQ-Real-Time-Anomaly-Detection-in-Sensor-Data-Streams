@@ -25,7 +25,7 @@ def peek(a):
         q = q[q["fault_type"] == a.fault]
     if a.faults_only:
         q = q[~q["fault_type"].isin(["normal"])]
-    if not (a.city or a.device or a.start or a.fault or a.faults_only):
+    if not (a.city or a.device or a.start or a.end or a.fault or a.faults_only or a.export):
         dev = pd.read_csv(DEVICES_FILE) if DEVICES_FILE.exists() else None
         g = df.groupby("city").agg(devices=("device_id", "nunique"), rows=("timestamp", "size"),
                                    pm_median=("pm25", "median"), faulty=("is_valid", lambda s: 1 - s.mean()))
