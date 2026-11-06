@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/FastAPI-ingestion%20API-009688?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-live%20dashboard-61DAFB?logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/SQLite-store-003B57?logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/tests-8%20passed-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/tests-31%20passed-brightgreen" alt="tests">
   <img src="https://img.shields.io/badge/data-synthetic%20%2B%201%20real%20file-lightgrey" alt="data">
 </p>
 
@@ -34,7 +34,7 @@ SentinelAQ checks each reading as it arrives and answers: **is this a sensor fau
 1. **Rules** catch certain facts: missing data, temp above 55 or below -10, RH outside 0 to 100, PM = 3333, PM above the saturation floor (~2900).
 2. **LightGBM** looks at the last 192 hours of the device and the nearby devices in the same city (40 features) and gives a fault probability for 9 classes.
 3. **Isotonic calibration** makes the probability honest (70% means about 70%).
-4. **3-way policy**: `p_fault < 0.29` VALID, `p_fault > 0.83` INVALID, otherwise REVIEW. Rules always win over the model.
+4. **3-way policy**: below a low threshold VALID, above a high threshold INVALID, otherwise REVIEW (reference run: `p_fault < 0.29` / `> 0.83`; the exact pair is learned at `train` time and stored in the model, so a retrain can move it). Rules always win over the model.
 5. **Reason engine** writes the verdict in plain words. Everything is stored in SQLite and shown on the live dashboard.
 
 <p align="center">
@@ -46,7 +46,7 @@ SentinelAQ checks each reading as it arrives and answers: **is this a sensor fau
 
 ### 3.1 One command (recommended)
 
-`run.ps1` sets up the backend venv, installs everything, generates data and trains the model on the first run, runs the tests, then starts the **API + a demo live feed + the dashboard** together.
+`run.ps1` sets up the backend venv, installs everything, generates data and trains the model on the first run, then starts the **API + a demo live feed + the dashboard** together.
 
 ```powershell
 git clone https://github.com/kartikpagariya25/SentinalAQ-Real-Time-Anomaly-Detection-in-Sensor-Data-Streams.git SentinalAQ
@@ -75,7 +75,7 @@ python -m app.cli profile          # learn patterns from the real file
 python -m app.cli generate         # synthetic network: 3 years, 67 devices, 10 cities (~1.76 M rows)
 python -m app.cli train            # train winner, calibrate, set policy (~1 min)
 python -m app.cli evaluate         # full test report -> reports\evaluation
-python -m pytest -q                # 8 tests
+python -m pytest -q                # 31 tests (about 20 s)
 ```
 
 `compare` (the 9-model bake-off, ~45 min) is optional — the winner is already in `models\selection.json`, so `train` works without it. Use `compare --resume` to reuse saved stage 1-2 results.
@@ -134,18 +134,20 @@ curl -X POST http://127.0.0.1:8000/ingest -H "Content-Type: application/json" \
 |---|---|---|
 | POST | `/ingest` | send a list of readings, get verdicts back |
 | POST | `/close-hour/{ts}` | mark devices that sent nothing this hour as dropout |
-| GET | `/readings?date=&device=&verdict=&limit=` | stored readings for a day |
+| GET | `/readings?date=&device=&verdict=&limit=` | stored readings for a day (limit 1-5000) |
 | GET | `/readings/recent?limit=&verdict=` | newest readings (drives the live view) |
 | GET | `/stats` | live KPIs + recent anomalies |
 | GET | `/report/{date}?format=json\|csv\|pdf` | one-day report |
 | GET | `/report/range?period=daily\|weekly\|monthly\|yearly&date=&format=json\|csv\|pdf` | period report |
 | GET | `/health` | status |
 
-**Optional API key:** set `SENTINEL_API_KEY` before `serve`; clients then send it as the `X-API-Key` header on `/ingest`.
+**Optional API key:** set `SENTINEL_API_KEY` before `serve`; clients then send it as the `X-API-Key` header on `/ingest` and `/close-hour`. Read endpoints stay open for the dashboard.
+
+**Errors:** a malformed date or timestamp returns `400`; `limit` must be 1 to 5000 and `format` one of `json|csv|pdf` (otherwise `422`). Resending a batch is safe, duplicates are ignored. To accept devices from other machines run `serve --host 0.0.0.0`. Full request/response details: [docs/API.md](docs/API.md).
 
 ### 3.6 Scheduled email reports
 
-Set SMTP env vars, then send on demand or on a schedule:
+Set SMTP env vars (`SMTP_PORT` defaults to 587 with STARTTLS; 465 uses implicit TLS), then send on demand or on a schedule. `email-report` exits with code 1 if sending fails:
 
 ```powershell
 $env:SMTP_HOST="smtp.gmail.com"; $env:SMTP_USER="you@gmail.com"; $env:SMTP_PASS="app-password"; $env:REPORT_TO="team@respirer.in"
@@ -344,7 +346,7 @@ Test period 2026-01-01 to 2026-09-30, never used for training or tuning. Numbers
 | Why hold out cities and fault families? | To measure what happens when the real world differs from training. |
 | Why SQLite? | Zero setup, one file, enough for hourly data from tens of devices. Swap for Postgres when scale needs it. |
 | Why FastAPI? | Typed requests, automatic Swagger docs, easy for Respirer's pipeline to call. |
-| Why Streamlit? | Fast to build and good enough for an operations view. |
+| Why a React dashboard, and Streamlit too? | React is the live operations view. `frontend/dashboard.py` (Streamlit) is the older offline explorer that streams straight from the model. |
 | Why not deep learning (LSTM, autoencoder)? | The data is hourly with few strong faults, tabular features work better, and trees are fast and explainable. The MLP result supports this. |
 
 ## 10. Limits
@@ -364,17 +366,28 @@ Device-to-location mapping, multi-device real data, labelled faults, and confirm
 ## 12. Layout
 
 ```
-run.ps1        one-command end-to-end setup + launch (API + feed + dashboard)
-backend/app/   profile, priors, generator, features, rules, model, compare, evaluate,
-               detector, reasons, ingest (SQLite), api (FastAPI), report_pdf,
-               mailer (email reports), live (HTTP feed), stream, explore, cli
+run.ps1         one command: set up, start API + feed + dashboard
+backend.ps1     backend only: set up, start API + feed (-SetupOnly to just install/train)
+dashboard.ps1   build and serve the dashboard (-Dev for hot reload)
+models.ps1      show all models and metrics (-Info for descriptions)
+backend/app/    profile, priors, generator, features, rules, model, compare, evaluate,
+                detector, reasons, ingest (SQLite), api (FastAPI), report_pdf,
+                mailer (email reports), live (HTTP feed), stream, explore, cli
 backend/examples  push_client.py  (how an upstream pipeline connects)
-backend/models selection.json (winner), trained models (gitignored)
-backend/tests  8 tests
-frontend/      React + Vite + Tailwind dashboard (src/), dashboard.py (Streamlit, legacy)
-docs/          DECISIONS.md, assets/ (banner, flow)
+backend/models  selection.json (winner), model_comparison.csv; trained models are gitignored
+backend/tests   31 tests (API, periods, explore, pipeline)
+frontend/       React + Vite + Tailwind dashboard (src/), dashboard.py (Streamlit, legacy)
+docs/           API.md, ARCHITECTURE.md, DEVELOPMENT.md, DECISIONS.md, assets/
 ```
 
-More detail: [docs/DECISIONS.md](docs/DECISIONS.md)
+## 13. Documentation
+
+| Document | Read it for |
+|---|---|
+| [docs/API.md](docs/API.md) | every endpoint, parameter, response and error |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | data flow, modules, decision logic, features, storage |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | setup, tests, every CLI command, env vars, how to extend |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | design rationale, model selection, results, limits |
+| [frontend/README.md](frontend/README.md) | the dashboard |
 
 <sub>Banner colours are inspired by an environmental teal and sky theme. No Respirer logo or brand asset is used.</sub>
