@@ -23,6 +23,7 @@ def main():
     p.add_argument("--faults-only", action="store_true")
     sv = sub.add_parser("serve")
     sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--host", default="127.0.0.1", help="interface to bind (use 0.0.0.0 to accept remote devices)")
     sv.add_argument("--email-period", default=None, help="daily/weekly: start scheduled email reports")
     sv.add_argument("--email-hour", type=int, default=6)
     lf = sub.add_parser("live-feed")
@@ -76,7 +77,7 @@ def main():
         if a.email_period:
             from .mailer import start_scheduler
             start_scheduler(a.email_period, a.email_hour)
-        uvicorn.run("app.api:app", host="127.0.0.1", port=a.port)
+        uvicorn.run("app.api:app", host=a.host, port=a.port)
     elif a.cmd == "live-feed":
         from .live import run_live_feed
         run_live_feed(a)
@@ -87,6 +88,7 @@ def main():
             ui.ok(str(send_report(a.period, a.date, to)))
         except Exception as e:
             ui.warn(str(e))
+            raise SystemExit(1)
     elif a.cmd == "ingest-sim":
         from .stream import run_ingest_sim
         run_ingest_sim(a)
