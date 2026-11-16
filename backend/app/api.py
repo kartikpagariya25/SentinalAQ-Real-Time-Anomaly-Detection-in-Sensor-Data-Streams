@@ -103,8 +103,7 @@ def stats():
     r = ing.store.recent(500)
     lo, hi = ing.store.span()
     out = {"total": ing.store.count(), "devices": len(ing.store.devices()), "last": hi,
-           "latest_window": {"valid": 0, "invalid": 0, "review": 0}, "recent_anomalies": [],
-           "by_hour": ing.store.hourly(24)}
+           "latest_window": {"valid": 0, "invalid": 0, "review": 0}, "recent_anomalies": []}
     if not r.empty:
         v = r["verdict"].value_counts()
         out["latest_window"] = {"valid": int(v.get("VALID", 0)), "invalid": int(v.get("INVALID", 0)), "review": int(v.get("REVIEW", 0))}

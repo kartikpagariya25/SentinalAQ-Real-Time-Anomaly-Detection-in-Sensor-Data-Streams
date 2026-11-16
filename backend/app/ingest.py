@@ -1,5 +1,6 @@
 """SQLite store, the Ingestor (dedupe, late data, history, scoring, dropout closing) and period summaries."""
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -27,6 +28,7 @@ class Store:
     def __init__(self, path=DB_FILE):
         self.path = Path(path)
         self.mem = str(path) == ":memory:"
+        self._roster = None
         if not self.mem:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         self._shared = sqlite3.connect(str(path), check_same_thread=False, timeout=30) if self.mem else None
@@ -111,17 +113,24 @@ class Store:
                         "VALID": int(r.get("VALID", 0)), "REVIEW": int(r.get("REVIEW", 0)), "INVALID": int(r.get("INVALID", 0))})
         return out
 
+    def _device_roster(self):
+        if self._roster is None or time.time() - self._roster[0] > 60:
+            with self._cur() as c:
+                rows = c.execute("SELECT device_id, city FROM readings GROUP BY device_id").fetchall()
+            if not rows:
+                return rows
+            self._roster = (time.time(), rows)
+        return self._roster[1]
+
     def devices_cities(self):
-        with self._cur() as c:
-            return c.execute("SELECT device_id, city FROM readings GROUP BY device_id").fetchall()
+        return self._device_roster()
 
     def seen_at(self, ts):
         with self._cur() as c:
             return {r[0] for r in c.execute("SELECT device_id FROM readings WHERE ts = ?", (ts,)).fetchall()}
 
     def devices(self):
-        with self._cur() as c:
-            return [r[0] for r in c.execute("SELECT DISTINCT device_id FROM readings").fetchall()]
+        return [r[0] for r in self._device_roster()]
 
     def count(self):
         with self._cur() as c:

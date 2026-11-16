@@ -72,11 +72,10 @@ Newest readings by arrival order (this drives the live view). Query: `limit` (de
 ```json
 {"total": 120000, "devices": 67, "last": "2026-09-30T23:00:00",
  "latest_window": {"valid": 480, "invalid": 12, "review": 8},
- "recent_anomalies": [ ... up to 20 non-VALID readings ... ],
- "by_hour": [{"hour": "09-30 22h", "VALID": 66, "REVIEW": 0, "INVALID": 1}]}
+ "recent_anomalies": [ ... up to 20 non-VALID readings ... ]}
 ```
 
-`latest_window` covers the 500 most recently arrived readings; `by_hour` the last 24 hours of stored data.
+`latest_window` covers the 500 most recently arrived readings.
 
 ## Reports
 
