@@ -3,9 +3,11 @@ import { Terminal, Pause, Play } from "lucide-react";
 import { api } from "../api";
 import { VERDICT } from "./Shared";
 
-const POLL_MS = 1500;
-const REVEAL_MS = 120;
+const POLL_MS = 1000;
+const REVEAL_MS = 100;
 const MAX_LINES = 400;
+const MAX_QUEUE = 600;
+const IDLE_MS = 20000;
 
 function clock() {
   return new Date().toLocaleTimeString("en-GB");
@@ -16,11 +18,13 @@ export default function LogConsole() {
   const [now, setNow] = useState(clock());
   const [rate, setRate] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [idle, setIdle] = useState(false);
   const seen = useRef(new Set());
   const queue = useRef([]);
   const stamps = useRef([]);
   const box = useRef(null);
   const pausedRef = useRef(false);
+  const lastArrival = useRef(Date.now());
 
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
@@ -28,13 +32,15 @@ export default function LogConsole() {
     async function poll() {
       if (pausedRef.current) return;
       try {
-        const recent = await api.recent(60);
+        const recent = await api.recent(300);
         for (const r of [...recent].reverse()) {
           const key = `${r.device_id}|${r.timestamp}`;
           if (seen.current.has(key)) continue;
           seen.current.add(key);
           queue.current.push(r);
+          lastArrival.current = Date.now();
         }
+        if (queue.current.length > MAX_QUEUE) queue.current = queue.current.slice(-MAX_QUEUE);
         if (seen.current.size > 4000) seen.current = new Set([...seen.current].slice(-2000));
       } catch {
         /* API not up yet */
@@ -44,11 +50,13 @@ export default function LogConsole() {
     const p = setInterval(poll, POLL_MS);
     const reveal = setInterval(() => {
       if (pausedRef.current || !queue.current.length) return;
-      const r = queue.current.shift();
+      const n = Math.max(1, Math.ceil(queue.current.length / 20));
       const at = clock();
-      stamps.current.push(Date.now());
+      const batch = queue.current.splice(0, n).map((r) => ({ ...r, at }));
+      const t = Date.now();
+      batch.forEach(() => stamps.current.push(t));
       setLines((prev) => {
-        const next = [...prev, { ...r, at }];
+        const next = [...prev, ...batch];
         return next.length > MAX_LINES ? next.slice(-MAX_LINES) : next;
       });
     }, REVEAL_MS);
@@ -57,6 +65,7 @@ export default function LogConsole() {
       const cut = Date.now() - 60000;
       stamps.current = stamps.current.filter((t) => t >= cut);
       setRate(stamps.current.length);
+      setIdle(Date.now() - lastArrival.current > IDLE_MS);
     }, 1000);
     return () => { clearInterval(p); clearInterval(reveal); clearInterval(tick); };
   }, []);
@@ -72,6 +81,7 @@ export default function LogConsole() {
           <Terminal size={15} className="text-brand" /> live stream · readings scored on arrival
         </div>
         <div className="flex items-center gap-4 text-xs text-muted">
+          {idle && <span className="text-amber-600">waiting for the next reading</span>}
           <span>{rate}/min</span>
           <span className="font-mono tabular-nums text-emerald-600">{now}</span>
           <button onClick={() => setPaused((v) => !v)} className="flex items-center gap-1 rounded px-2 py-0.5 text-ink/70 hover:bg-line/60">
