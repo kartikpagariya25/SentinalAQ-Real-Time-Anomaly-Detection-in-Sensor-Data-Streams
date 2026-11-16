@@ -1,4 +1,4 @@
-"""`live-feed`: pushes demo readings to a running API over HTTP (dataset history plus today's hours as they complete)."""
+"""`live-feed`: pushes demo readings to a running API over HTTP (today's hours as they complete, plus the dataset's history streamed continuously)."""
 import time
 
 import httpx
@@ -10,7 +10,7 @@ from .detector import RAW_COLS
 from .priors import CITIES as ALL_CITIES
 from .stream import simulate
 
-REPLAY_CHUNK = 8
+RETRY_MAX_WAIT = 10
 
 
 def _payload(tick):
@@ -20,16 +20,47 @@ def _payload(tick):
     return [{k: (None if isinstance(v, float) and v != v else v) for k, v in row.items()} for row in rows]
 
 
-def _push(c, base, tick):
-    rows = _payload(tick)
-    c.post(f"{base}/ingest", json=rows).raise_for_status()
-    return len(rows)
+class Link:
+    """HTTP client that keeps retrying connection errors, timeouts and 5xx answers until the API responds."""
+
+    def __init__(self, base, headers):
+        self.base = base
+        self.client = httpx.Client(timeout=120, headers=headers)
+        self.down = False
+
+    def call(self, method, path, **kw):
+        wait = 1
+        while True:
+            try:
+                r = self.client.request(method, self.base + path, **kw)
+                if r.status_code >= 500:
+                    raise httpx.HTTPStatusError("server error", request=r.request, response=r)
+                if self.down:
+                    ui.ok("API is back, feed resumed")
+                    self.down = False
+                return r
+            except (httpx.TransportError, httpx.HTTPStatusError) as e:
+                if not self.down:
+                    ui.warn(f"API not answering ({type(e).__name__}); retrying until it is back")
+                    self.down = True
+                time.sleep(wait)
+                wait = min(wait * 2, RETRY_MAX_WAIT)
 
 
-def _close(c, base, ts, pushed, tag):
-    c.post(f"{base}/close-hour/{ts.isoformat()}").raise_for_status()
-    st = c.get(f"{base}/stats").json()["latest_window"]
-    print(ui.paint(f"{ts:%Y-%m-%d %H:%M}  {tag:<6} pushed {pushed:>3}  |  window  V {st['valid']:<4} I {st['invalid']:<4} R {st['review']:<4}", ui.CYAN))
+def _push(link, tick):
+    r = link.call("POST", "/ingest", json=_payload(tick))
+    if r.status_code >= 400:
+        ui.warn(f"API rejected a batch ({r.status_code}): {r.text[:160]}")
+        return None
+    return r.json()
+
+
+def _close(link, ts, pushed, tag):
+    link.call("POST", f"/close-hour/{ts.isoformat()}")
+    r = link.call("GET", "/stats")
+    if r.status_code == 200:
+        st = r.json()["latest_window"]
+        print(ui.paint(f"{ts:%Y-%m-%d %H:%M}  {tag:<6} pushed {pushed:>3}  |  window  V {st['valid']:<4} I {st['invalid']:<4} R {st['review']:<4}", ui.CYAN))
 
 
 def _day_ticks(day, cities, seed):
@@ -42,7 +73,7 @@ class Today:
         self.cities, self.seed = cities, seed
         self.day, self.ticks, self.sent = None, {}, set()
 
-    def flush(self, c, base):
+    def flush(self, link):
         cur = pd.Timestamp.now().floor("h")
         if self.day != cur.normalize():
             self.day = cur.normalize()
@@ -50,10 +81,10 @@ class Today:
             self.sent = set()
             ui.step(f"live day: {self.day:%A %d %b %Y}")
         for ts in sorted(t for t in self.ticks if t <= cur and t not in self.sent):
-            n = _push(c, base, self.ticks[ts])
-            _close(c, base, ts, n, "live")
+            res = _push(link, self.ticks[ts])
+            if res is not None and res.get("scored", 0):
+                _close(link, ts, len(self.ticks[ts]), "live")
             self.sent.add(ts)
-        return all(t in self.sent for t in self.ticks if t <= cur)
 
 
 def _history(cities, days):
@@ -67,6 +98,32 @@ def _history(cities, days):
     return df[df["timestamp"] >= lo]
 
 
+def _session(a, link, today, cities):
+    hj = link.call("GET", "/health").json()
+    ui.ok(f"connected, model: {hj['model']}")
+    if hj.get("last") and pd.Timestamp(hj["last"]) > pd.Timestamp.now():
+        ui.warn(f"store holds future-dated readings (up to {hj['last']}) from an old run - restart with .\\run.ps1 -Fresh")
+    today.flush(link)
+    hist = _history(cities, a.replay_days) if a.replay_days > 0 else None
+    if hist is not None and not hist.empty:
+        ui.step(f"Streaming dataset history {hist['timestamp'].min():%Y-%m-%d} to {hist['timestamp'].max():%Y-%m-%d %H:%M}, one hour every {a.delay:g} s")
+        for ts, tick in hist.groupby("timestamp", sort=True):
+            began = time.time()
+            today.flush(link)
+            res = _push(link, tick)
+            if res is None or res.get("scored", 0) == 0:
+                continue
+            _close(link, ts, len(tick), "data")
+            time.sleep(max(0.0, a.delay - (time.time() - began)))
+        ui.ok("dataset history finished")
+    if not a.loop:
+        return
+    ui.step("Now live: each completed hour is scored as it arrives")
+    while True:
+        today.flush(link)
+        time.sleep(5)
+
+
 def run_live_feed(a):
     cities = [c.strip() for c in a.cities.split(",") if c.strip()]
     if any(c.lower() == "all" for c in cities):
@@ -75,31 +132,17 @@ def run_live_feed(a):
     headers = {"X-API-Key": a.api_key} if a.api_key else {}
     ui.title(f"Live HTTP feed -> {base}/ingest")
     ui.step("Today's readings arrive as each hour completes; the dataset's past hours stream continuously in between. Nothing is stamped in the future. Ctrl+C to stop.")
+    link = Link(base, headers)
     today = Today(cities, a.seed)
     try:
-        with httpx.Client(timeout=30, headers=headers) as c:
-            h = c.get(f"{base}/health")
-            h.raise_for_status()
-            hj = h.json()
-            ui.ok(f"connected, model: {hj['model']}")
-            if hj.get("last") and pd.Timestamp(hj["last"]) > pd.Timestamp.now():
-                ui.warn(f"store holds future-dated readings (up to {hj['last']}) from an old run - restart with .\\run.ps1 -Fresh")
-            today.flush(c, base)
-            hist = _history(cities, a.replay_days) if a.replay_days > 0 else None
-            if hist is not None and not hist.empty:
-                ui.step(f"Streaming dataset history {hist['timestamp'].min():%Y-%m-%d} to {hist['timestamp'].max():%Y-%m-%d %H:%M}")
-                for ts, tick in hist.groupby("timestamp", sort=True):
-                    today.flush(c, base)
-                    n = 0
-                    for i in range(0, len(tick), REPLAY_CHUNK):
-                        n += _push(c, base, tick.iloc[i:i + REPLAY_CHUNK])
-                        time.sleep(a.delay)
-                    _close(c, base, ts, n, "data")
-                ui.ok("dataset history finished")
-            while a.loop:
-                today.flush(c, base)
-                time.sleep(5)
+        while True:
+            try:
+                _session(a, link, today, cities)
+                return
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                ui.warn(f"feed hit an error ({type(e).__name__}: {e}); restarting in 3 s")
+                time.sleep(3)
     except KeyboardInterrupt:
         print(ui.paint("\nstopped", ui.YELLOW))
-    except httpx.HTTPError as e:
-        ui.warn(f"cannot reach API at {base} ({e}). Start it first: python -m app.cli serve")

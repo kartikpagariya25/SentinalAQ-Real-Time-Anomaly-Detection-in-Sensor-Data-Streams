@@ -79,7 +79,8 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$backend'; & 
 if (-not $NoFeed) {
     Start-Sleep -Seconds 6
     Info "Starting live feed window (all cities)"
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$backend'; & '$venvPy' -m app.cli live-feed --url $api --cities all --delay 1 --replay-days $ReplayDays --loop"
+    $feedCmd = "cd '$backend'; while (`$true) { & '$venvPy' -m app.cli live-feed --url $api --cities all --delay 2 --replay-days $ReplayDays --loop; Start-Sleep -Seconds 3 }"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", $feedCmd
 }
 
 Info "Starting dashboard window -> http://127.0.0.1:5173"
